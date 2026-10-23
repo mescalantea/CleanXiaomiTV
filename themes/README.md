@@ -50,6 +50,7 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 |---|---|---|
 | `jellyfin_url`, `jellyfin_api_key`, `jellyfin_user_id` | string | Jellyfin server (https), an API key made in its dashboard, and your user id; all three are needed for Jellyfin on the shelf |
 | `youtube_channels` | list of channel ids | Channels whose latest videos go on the shelf |
+| `profiles` | list of objects | One per person: `name`, and optionally their own `jellyfin_user_id` and `youtube_channels`. With two or more, a button with the name shows next to Settings on Home, and OK on it switches the shelf to the next person. A profile's Jellyfin user replaces the flat one; its YouTube channels are added to the flat ones |
 | `weather_latitude`, `weather_longitude`, `weather_place` | string | Your weather location, over `config.xml` and the theme |
 
 See [`private.example/private.json`](private.example/private.json).

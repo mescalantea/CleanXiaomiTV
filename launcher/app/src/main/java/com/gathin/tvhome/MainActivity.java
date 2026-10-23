@@ -364,6 +364,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
         btnInputs = findViewById(R.id.btnInputs);
         View btnSettings = findViewById(R.id.btnSettings);
+        TextView btnProfile = findViewById(R.id.btnProfile);
         btnInputs.setOnClickListener(v -> showInputs());
         btnWifi.setOnClickListener(v -> openNetworkPill());
         btnWifi.setOnLongClickListener(v -> {
@@ -371,9 +372,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return true;
         });
         // Liquid glass top buttons: the blurred photo behind them; solid white while focused.
-        for (View pill : new View[] {btnInputs, btnWifi, btnSettings}) pill.setBackground(glassPill(pill));
+        for (View pill : new View[] {btnInputs, btnWifi, btnProfile, btnSettings}) pill.setBackground(glassPill(pill));
         if (advancedEffects) {
-            for (View pill : new View[] {btnInputs, btnWifi, btnSettings}) {
+            for (View pill : new View[] {btnInputs, btnWifi, btnProfile, btnSettings}) {
                 pill.setOnFocusChangeListener((view, focused) -> view.animate()
                         .scaleX(focused ? 1.08f : 1f).scaleY(focused ? 1.08f : 1f).setDuration(180).start());
             }
@@ -399,7 +400,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         btnSettings.setOnClickListener(v -> showSettingsMenu());
         shelfView = findViewById(R.id.shelf);
-        shelf = new Shelf(this, findViewById(R.id.shelfList), cfg, new Shelf.Exits() {
+        Config.Profile profile = cfg.profile(Config.chosenProfile(this));
+        shelf = new Shelf(this, findViewById(R.id.shelfList), cfg, profile, new Shelf.Exits() {
             @Override
             public void up() {
                 if (cardShowing()) nowCard.defaultButton().requestFocus();
@@ -452,6 +454,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnInputs.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
         btnSettings.setOnKeyListener(pillKeys);
+        btnProfile.setOnKeyListener(pillKeys);
+        if (cfg.profiles.size() >= 2) {
+            btnProfile.setText(profile.name);
+            btnProfile.setVisibility(View.VISIBLE);
+            // OK steps to the next person: the shelf reloads at once for them.
+            btnProfile.setOnClickListener(v -> {
+                int at = 0;
+                for (int i = 0; i < cfg.profiles.size(); i++) {
+                    if (cfg.profiles.get(i).name.contentEquals(btnProfile.getText())) at = i;
+                }
+                Config.Profile next = cfg.profile(cfg.profiles.get((at + 1) % cfg.profiles.size()).name);
+                Config.chooseProfile(this, next.name);
+                btnProfile.setText(next.name);
+                shelf.use(next);
+            });
+        }
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {

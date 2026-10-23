@@ -3,6 +3,10 @@
   "jellyfin_api_key": "your-api-key",
   "jellyfin_user_id": "your-user-id",
   "youtube_channels": ["UCxxxxxxxxxxxxxxxxxxxxxx"],
+  "profiles": [
+    {"name": "Alex", "jellyfin_user_id": "alex-user-id", "youtube_channels": ["UCaaaaaaaaaaaaaaaaaaaaaa"]},
+    {"name": "Sam", "jellyfin_user_id": "sam-user-id"}
+  ],
   "weather_latitude": "40.4168",
   "weather_longitude": "-3.7038",
   "weather_place": "Madrid"

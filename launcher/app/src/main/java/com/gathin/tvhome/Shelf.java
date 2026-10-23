@@ -54,8 +54,11 @@ final class Shelf {
     private final Activity activity;
     private final RecyclerView list;
     private final Exits exits;
-    private final String jellyfinUrl, jellyfinKey, jellyfinUser;
-    private final List<String> youtubeChannels;
+    private final String jellyfinUrl, jellyfinKey;
+    private String jellyfinUser;
+    private List<String> youtubeChannels;
+    /** Bumped on a profile switch, so a fetch still running for the previous profile is dropped. */
+    private int generation;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newFixedThreadPool(2);
     private final LruCache<String, Bitmap> posters = new LruCache<String, Bitmap>(6 * 1024 * 1024) {
@@ -70,14 +73,14 @@ final class Shelf {
     private boolean loading;
     private int focusedIndex;
 
-    Shelf(Activity activity, RecyclerView list, Config cfg, Exits exits) {
+    Shelf(Activity activity, RecyclerView list, Config cfg, Config.Profile profile, Exits exits) {
         this.activity = activity;
         this.list = list;
         this.exits = exits;
         jellyfinUrl = cfg.jellyfinUrl;
         jellyfinKey = cfg.jellyfinApiKey;
-        jellyfinUser = cfg.jellyfinUserId;
-        youtubeChannels = cfg.youtubeChannels;
+        jellyfinUser = profile.jellyfinUserId;
+        youtubeChannels = profile.youtubeChannels;
         list.setLayoutManager(new LinearLayoutManager(activity, LinearLayoutManager.HORIZONTAL, false));
         list.setItemAnimator(null);
         list.setAdapter(adapter);
@@ -85,6 +88,18 @@ final class Shelf {
 
     boolean hasItems() {
         return !items.isEmpty();
+    }
+
+    /** Switches to another person's items, dropping the current ones and fetching at once. */
+    void use(Config.Profile profile) {
+        jellyfinUser = profile.jellyfinUserId;
+        youtubeChannels = profile.youtubeChannels;
+        generation++;
+        loading = false;
+        refreshedAt = -REFRESH_MS;
+        focusedIndex = 0;
+        show(Collections.emptyList());
+        refresh();
     }
 
     /** Fetches again when the last fetch is older than a few minutes. */
@@ -100,17 +115,21 @@ final class Shelf {
         refreshedAt = now;
         loading = true;
         final String episode = activity.getString(R.string.shelf_episode);
+        final String user = jellyfinUser;
+        final List<String> channels = youtubeChannels;
+        final int gen = generation;
         io.execute(() -> {
             List<ShelfItem> fresh = new ArrayList<>();
             if (jellyfin) {
                 try {
-                    fresh.addAll(Jellyfin.fetch(jellyfinUrl, jellyfinKey, jellyfinUser, episode));
+                    fresh.addAll(Jellyfin.fetch(jellyfinUrl, jellyfinKey, user, episode));
                 } catch (Exception e) {
                     Log.w(TAG, "jellyfin: " + e.getClass().getSimpleName());
                 }
             }
-            if (youtube) fresh.addAll(YouTubeFeed.fetch(youtubeChannels, YOUTUBE_MAX));
+            if (youtube) fresh.addAll(YouTubeFeed.fetch(channels, YOUTUBE_MAX));
             handler.post(() -> {
+                if (gen != generation) return;
                 loading = false;
                 show(fresh);
             });

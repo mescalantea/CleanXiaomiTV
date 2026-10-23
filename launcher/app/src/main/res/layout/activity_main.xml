@@ -225,6 +225,17 @@
                     android:drawableStart="@drawable/ic_input"
                     android:nextFocusDown="@+id/grid" />
 
+                <!-- Whose items the shelf shows; only with two or more profiles in private.json. -->
+                <TextView
+                    android:id="@+id/btnProfile"
+                    style="@style/TopButton"
+                    android:maxWidth="160dp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:contentDescription="@string/profile"
+                    android:visibility="gone"
+                    android:nextFocusDown="@+id/grid" />
+
                 <TextView
                     android:id="@+id/btnSettings"
                     style="@style/TopIconButton"

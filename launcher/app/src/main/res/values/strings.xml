@@ -50,4 +50,5 @@
     <string name="advanced_effects">Advanced effects</string>
     <string name="shelf_title">For you</string>
     <string name="shelf_episode" formatted="false">S%1$dE%2$d</string>
+    <string name="profile">Profile</string>
 </resources>

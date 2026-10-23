@@ -68,6 +68,21 @@ final class Config {
     final String jellyfinUserId;
     /** YouTube channel ids whose latest videos go on the shelf. */
     final List<String> youtubeChannels;
+    /** The people using the TV (private.json, profiles); empty when there is only the flat keys above. */
+    final List<Profile> profiles;
+
+    /** One person's own values; empty fields fall back to the flat keys (see {@link #profile}). */
+    static final class Profile {
+        final String name;
+        final String jellyfinUserId;
+        final List<String> youtubeChannels;
+
+        Profile(String name, String jellyfinUserId, List<String> youtubeChannels) {
+            this.name = name;
+            this.jellyfinUserId = jellyfinUserId;
+            this.youtubeChannels = Collections.unmodifiableList(youtubeChannels);
+        }
+    }
     /** Background colour behind everything, #RRGGBB; black unless a theme says otherwise. */
     final int backgroundColor;
     /** Full-screen picture behind the launcher, or null for the plain colour. */
@@ -81,7 +96,7 @@ final class Config {
                    boolean advancedEffects,
                    boolean dreamAnalog, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut,
-                   String jellyfinUrl, String jellyfinApiKey, String jellyfinUserId, List<String> youtubeChannels, int backgroundColor,
+                   String jellyfinUrl, String jellyfinApiKey, String jellyfinUserId, List<String> youtubeChannels, List<Profile> profiles, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
@@ -108,6 +123,7 @@ final class Config {
         this.jellyfinApiKey = jellyfinApiKey;
         this.jellyfinUserId = jellyfinUserId;
         this.youtubeChannels = Collections.unmodifiableList(youtubeChannels);
+        this.profiles = Collections.unmodifiableList(profiles);
         this.backgroundColor = backgroundColor;
         this.wallpaper = wallpaper;
         this.overlayApplied = overlayApplied;
@@ -175,12 +191,14 @@ final class Config {
         }
         String jellyfinUrl = "", jellyfinKey = "", jellyfinUser = "";
         List<String> youtube = new ArrayList<>();
+        List<Profile> profiles = new ArrayList<>();
         JSONObject own = read(dir != null ? new File(dir, PRIVATE_NAME) : null);
         if (own != null) {
             jellyfinUrl = string(own, "jellyfin_url", jellyfinUrl);
             jellyfinKey = string(own, "jellyfin_api_key", jellyfinKey);
             jellyfinUser = string(own, "jellyfin_user_id", jellyfinUser);
             youtube = stringList(own, "youtube_channels", youtube);
+            profiles = profiles(own);
             weatherLat = string(own, "weather_latitude", weatherLat);
             weatherLon = string(own, "weather_longitude", weatherLon);
             weatherPlace = string(own, "weather_place", weatherPlace);
@@ -201,9 +219,54 @@ final class Config {
                 Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), Math.max(0, Math.min(100, dockOpacity)),
                 advancedEffects, dreamAnalog, photos, playing, homePhoto, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings,
-                jellyfinUrl, jellyfinKey, jellyfinUser, youtube, background,
+                jellyfinUrl, jellyfinKey, jellyfinUser, youtube, profiles, background,
                 wallpaper, applied);
     }
+
+    /**
+     * The values for the named profile, else the first one, merged with the flat keys: the profile's
+     * Jellyfin user wins, and the YouTube channels of both apply. Without profiles, the flat keys alone.
+     */
+    Profile profile(String name) {
+        return merge(profiles, name, jellyfinUserId, youtubeChannels);
+    }
+
+    static Profile merge(List<Profile> profiles, String name, String jellyfinUserId, List<String> youtubeChannels) {
+        Profile chosen = null;
+        for (Profile p : profiles) if (p.name.equals(name)) chosen = p;
+        if (chosen == null && !profiles.isEmpty()) chosen = profiles.get(0);
+        if (chosen == null) return new Profile("", jellyfinUserId, youtubeChannels);
+        List<String> channels = new ArrayList<>(youtubeChannels);
+        for (String c : chosen.youtubeChannels) if (!channels.contains(c)) channels.add(c);
+        return new Profile(chosen.name, chosen.jellyfinUserId.isEmpty() ? jellyfinUserId : chosen.jellyfinUserId, channels);
+    }
+
+    /** "profiles": [{"name": ..., "jellyfin_user_id": ..., "youtube_channels": [...]}]; entries without a name are skipped. */
+    static List<Profile> profiles(JSONObject o) {
+        List<Profile> out = new ArrayList<>();
+        JSONArray a = o.optJSONArray("profiles");
+        if (a == null) return out;
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject p = a.optJSONObject(i);
+            if (p == null) continue;
+            String name = string(p, "name", "");
+            if (name.isEmpty()) continue;
+            out.add(new Profile(name, string(p, "jellyfin_user_id", ""),
+                    stringList(p, "youtube_channels", new ArrayList<>())));
+        }
+        return out;
+    }
+
+    /** The profile chosen on the TV (Home's profile button), or "" before any choice. */
+    static String chosenProfile(Context ctx) {
+        return toggles(ctx).getString(PROFILE, "");
+    }
+
+    static void chooseProfile(Context ctx, String name) {
+        toggles(ctx).edit().putString(PROFILE, name).apply();
+    }
+
+    static final String PROFILE = "profile";
 
     /** Keys of the switches in the Settings menu; the same names as in config.xml and config.json. */
     static final String DREAM_ANALOG = "dream_analog", GRID_COLUMNS = "grid_columns", ADVANCED_EFFECTS = "advanced_effects";
