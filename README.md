@@ -51,7 +51,7 @@ done
 tools/venv/bin/python -I tools/tv.py 'settings put secure screensaver_components com.majnioui.cleanxiaomitv/com.gathin.tvhome.ClockDream; settings put secure screensaver_enabled 1'
 ```
 
-`INPUT_KEY_SERVICE=1` keeps the remote's Input button working once the stock home is gone, and on Xiaomi remotes the YouTube and Apps buttons too; Android switches it off on every reinstall, so pass it each time. `PRIVATE_DNS=off` skips the AdGuard DNS. The script also turns Location on, which Android needs before it tells the launcher the Wi-Fi network's name (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)).
+`INPUT_KEY_SERVICE=1` keeps the remote's Input button working once the stock home is gone, and on Xiaomi remotes the YouTube and Apps buttons too; Android switches it off on every reinstall, so pass it each time. By default the script sets the TV's Private DNS to AdGuard; `PRIVATE_DNS=off` leaves the TV's DNS setting as it is, it doesn't turn Private DNS off. To turn it off, for example when your Jellyfin server's public name has to resolve to your router from inside your network, run `tools/venv/bin/python -I tools/tv.py 'settings put global private_dns_mode off'`. The script also turns Location on, which Android needs before it tells the launcher the Wi-Fi network's name (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)).
 
 ## Configure
 

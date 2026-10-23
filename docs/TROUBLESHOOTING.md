@@ -54,7 +54,10 @@ Things that bit us or contributors, so they don't bite you. Commands use `tools/
   setupwraith's components is refused with a SecurityException. Disabling the whole
   `com.google.android.tungsten.setupwraith` package is what frees the slot. It is the first-run
   setup wizard, so everyday use is unaffected, but re-enable it before a factory reset - list it in
-  your `debloat.txt` and `tools/restore.sh` does that for you.
+  your `debloat.txt` and `tools/restore.sh` does that for you. Expect the TV to drop off the
+  network when you disable it: on two MiTV-MOOR2 (Android 11) it left Wi-Fi or went to standby
+  within seconds, and someone had to be at the TV. Reconnect Wi-Fi on the TV, then run the install
+  script again.
 - **The TV drops off Wi-Fi every minute right after the install**, seen on Google TV 14 (Xiaomi
   MiTV-MZTU0): the same setupwraith `.RecoveryActivity` took Home and system_server crash-looped
   on it. The install script now starts the new launcher before disabling the stock one, sets the
