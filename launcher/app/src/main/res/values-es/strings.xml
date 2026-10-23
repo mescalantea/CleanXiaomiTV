@@ -39,7 +39,8 @@
     <string name="section_tv">En directo</string>
     <string name="section_jellyfin">Seguir viendo</string>
     <string name="section_apps">Aplicaciones</string>
-    <string name="section_move_hint">MOVER SECCIÓN  •  ARRIBA / ABAJO  •  OK / ATRÁS LISTO</string>
+    <string name="section_order_title">Ordenar secciones</string>
+    <string name="section_order_hint">Arriba y abajo para moverla  •  OK o Atrás para terminar</string>
     <string name="hero_now">ahora</string>
     <string name="shelf_new">NUEVO</string>
     <string name="lock_settings">Seguridad del perfil</string>

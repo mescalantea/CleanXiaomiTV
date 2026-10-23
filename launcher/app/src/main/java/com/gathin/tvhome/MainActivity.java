@@ -114,7 +114,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean homePressed;
     /** The section being moved (hold OK on one of its cards), or null. */
     private Section moving;
-    private ShelfItem shelfItem;
+    private View orderPanel;
+    private final java.util.Map<Section, View> orderRows = new java.util.HashMap<>();
     private View hero, heroImage, heroScrim;
     private TextView heroTitle, heroSource, heroDescription;
     /** The card the hero shows, so a picture that arrives late for another card is dropped. */
@@ -307,7 +308,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
             @Override
             public void focused(int row, ShelfItem item) {
-                shelfItem = item;
                 showHero(item);
             }
 
@@ -595,6 +595,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // While a section moves, only Up, Down, OK and Back mean anything; the row underneath stays put.
+        int key = event.getKeyCode();
+        if (moving != null && (key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT)) return true;
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
     public void onBackPressed() {
         if (reorderMode) {
             finishReorder();
@@ -612,10 +620,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** One titled section: a row of cards (a Shelf row) or the apps grid (row -1). */
     private final class Section {
         final String key;
-        final int row;
         final int title;
+        final int row;
         final LinearLayout view;
-        final TextView name;
         final RecyclerView list;
 
         Section(String key, int title, RecyclerView list, int row) {
@@ -629,7 +636,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             view.setClipChildren(false);
             view.setClipToPadding(false);
             view.setPadding(0, 0, 0, getResources().getDimensionPixelSize(R.dimen.section_gap));
-            name = new TextView(MainActivity.this);
+            TextView name = new TextView(MainActivity.this);
             name.setText(title);
             name.setTextColor(0xE6FFFFFF);
             name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19);
@@ -751,7 +758,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * buttons), the first section takes that place.
      */
     private void scrollTo(Section in, View focused) {
-        if (moving != null) return;
         Section target = in;
         if (target == null) {
             for (Section s : sections) if (s.shown()) {
@@ -781,70 +787,129 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void startSectionMove(Section s) {
         if (s == null || reorderMode) return;
         moving = s;
-        s.name.setText("\u2195 " + getString(s.title));
-        android.graphics.drawable.GradientDrawable lift = new android.graphics.drawable.GradientDrawable();
-        lift.setColor(0x14FFFFFF);
-        lift.setStroke((int) (2 * density), 0x66FFFFFF);
-        lift.setCornerRadius(16 * density);
-        s.view.setBackground(lift);
-        s.view.setTranslationZ(4 * density);   // drawn over the sections it slides past
-        showHero(null);
-        heroScrim.animate().alpha(1f).setDuration(400).start();
-        showHint(R.string.section_move_hint);
-        overview();
+        orderPanel = orderPanel(s);
+        orderPanel.setAlpha(0f);
+        root.addView(orderPanel, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        orderPanel.animate().alpha(1f).setDuration(200).start();
+        hero.animate().alpha(0f).setDuration(200).start();
     }
 
     private void endSectionMove() {
         if (moving == null) return;
         Section s = moving;
-        s.name.setText(s.title);
-        s.view.setBackground(null);
-        s.view.setTranslationZ(0f);
         moving = null;
-        hideHint();
-        for (Section each : sections) {
-            each.view.setClipBounds(null);
-            each.view.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(SECTION_MOVE_MS).setInterpolator(SLIDE).start();
-        }
+        View panel = orderPanel;
+        orderPanel = null;
+        orderRows.clear();
+        panel.animate().alpha(0f).setDuration(200).withEndAction(() -> root.removeView(panel)).start();
+        if (heroItem != null) hero.animate().alpha(1f).setDuration(200).start();
         scrollTo(s, getCurrentFocus());
-        showHero(s.row >= 0 ? shelfItem : null);
     }
 
-    /**
-     * Move mode's view: every shown section shrunk to its title and first few cards, stacked and centred
-     * between the header and the hint, sliding from wherever it shows now.
-     */
-    private void overview() {
-        float listY = sectionList.getTranslationY();
-        sectionList.animate().cancel();
-        sectionList.setTranslationY(0f);
-        int cardHeight = getResources().getDimensionPixelSize(R.dimen.card_height);
-        float gap = 10 * density, total = -gap;
-        for (Section each : sections) if (each.shown()) total += (each.list.getTop() + cardHeight) * OVERVIEW_SCALE + gap;
-        float top = 110 * density, bottom = root.getHeight() - 70 * density;
-        float y = top + Math.max(0f, (bottom - top - total) / 2);
+    /** Move mode's list over the dimmed Home: one row per shown section, the moving one lifted. */
+    private View orderPanel(Section lifted) {
+        FrameLayout dim = new FrameLayout(this);
+        dim.setBackgroundColor(0xBF000000);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setClipChildren(false);
+        list.addView(panelText(getString(R.string.section_order_title), 22, 600, 0xFFFFFFFF));
+        TextView hint = panelText(getString(R.string.section_order_hint), 14, 400, 0x99FFFFFF);
+        hint.setPadding(0, (int) (6 * density), 0, (int) (8 * density));
+        list.addView(hint);
         for (Section each : sections) {
             if (!each.shown()) continue;
-            View v = each.view;
-            int height = each.list.getTop() + cardHeight;
-            v.setTranslationY(v.getTranslationY() + listY);
-            v.setPivotX(getResources().getDimensionPixelSize(R.dimen.home_margin));
-            v.setPivotY(0f);
-            v.setClipBounds(new Rect(0, 0, v.getWidth(), height));
-            v.animate().translationY(y - v.getTop()).scaleX(OVERVIEW_SCALE).scaleY(OVERVIEW_SCALE).alpha(1f)
-                    .setDuration(SECTION_MOVE_MS).setInterpolator(SLIDE).start();
-            y += height * OVERVIEW_SCALE + gap;
+            View row = orderRow(each, each == lifted);
+            orderRows.put(each, row);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (88 * density));
+            lp.topMargin = (int) (12 * density);
+            list.addView(row, lp);
         }
+        dim.addView(list, new FrameLayout.LayoutParams((int) (760 * density), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+        return dim;
     }
 
-    private static final float OVERVIEW_SCALE = 0.55f;
+    private View orderRow(Section s, boolean lifted) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding((int) (20 * density), 0, (int) (14 * density), 0);
+        android.graphics.drawable.GradientDrawable fill = new android.graphics.drawable.GradientDrawable();
+        fill.setCornerRadius(16 * density);
+        fill.setColor(lifted ? 0xFFFFFFFF : 0x1FFFFFFF);
+        row.setBackground(fill);
+        ImageView arrows = new ImageView(this);
+        arrows.setImageResource(R.drawable.ic_reorder);
+        arrows.setColorFilter(0xFF111111);
+        arrows.setVisibility(lifted ? View.VISIBLE : View.INVISIBLE);
+        LinearLayout.LayoutParams arrowsLp = new LinearLayout.LayoutParams((int) (28 * density), (int) (28 * density));
+        arrowsLp.setMarginEnd((int) (12 * density));
+        row.addView(arrows, arrowsLp);
+        row.addView(panelText(getString(s.title), 20, 600, lifted ? 0xFF111111 : 0xFFFFFFFF),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        for (int i = 0; i < Math.min(3, s.list.getChildCount()); i++) {
+            ImageView thumb = new ImageView(this);
+            android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
+            shape.setCornerRadius(8 * density);
+            shape.setColor(0x33FFFFFF);
+            thumb.setBackground(shape);
+            thumb.setClipToOutline(true);
+            thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            thumb.setImageBitmap(snapshot(s.list.getChildAt(i)));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (114 * density), (int) (64 * density));
+            lp.setMarginStart((int) (10 * density));
+            row.addView(thumb, lp);
+        }
+        if (lifted) {
+            row.setElevation(10 * density);
+            row.setScaleX(1.03f);
+            row.setScaleY(1.03f);
+        }
+        return row;
+    }
+
+    /** A picture of a card as it shows at rest, without its focus outline. */
+    private Bitmap snapshot(View item) {
+        View card = item.findViewById(R.id.shelfCard);
+        if (card == null) card = item.findViewById(R.id.card);
+        if (card == null) card = item;
+        Bitmap bmp = Bitmap.createBitmap(Math.max(1, card.getWidth()), Math.max(1, card.getHeight()), Bitmap.Config.ARGB_8888);
+        Drawable focus = card.getForeground();
+        card.setForeground(null);
+        card.draw(new Canvas(bmp));
+        card.setForeground(focus);
+        return bmp;
+    }
+
+    private TextView panelText(String text, float sp, int weight, int color) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextColor(color);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        t.setTypeface(getResources().getFont(R.font.outfit));
+        t.setFontVariationSettings("'wght' " + weight);
+        t.setSingleLine(true);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        return t;
+    }
+
     private static final long SECTION_MOVE_MS = 320L;
-    private static final android.view.animation.Interpolator SLIDE = new android.view.animation.DecelerateInterpolator();
+
+    /** The row slides from where it showed to its new place. */
+    private void slideFrom(View row, int top) {
+        row.setTranslationY(top - row.getTop());
+        row.animate().translationY(0f).setDuration(SECTION_MOVE_MS).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+    }
 
     /** One place up or down among the shown sections; the order is saved at once. */
     private void moveSection(Section s, int dir) {
         Section other = neighbour(s, dir);
-        if (other == null) return;
+        View row = orderRows.get(s), otherRow = orderRows.get(other);
+        if (other == null) {
+            // At the end: a small nudge says there is nowhere further to go.
+            if (row != null) row.animate().translationY(dir * 10 * density).setDuration(90)
+                    .withEndAction(() -> row.animate().translationY(0f).setDuration(160).start()).start();
+            return;
+        }
         int a = sections.indexOf(s), b = sections.indexOf(other);
         sections.set(a, other);
         sections.set(b, s);
@@ -852,27 +917,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         for (Section each : sections) order.add(each.key);
         Config.saveSectionOrder(this, order);
         View focused = getCurrentFocus();
-        java.util.Map<View, Float> shownAt = new java.util.HashMap<>();
-        for (int i = 0; i < sectionList.getChildCount(); i++) {
-            View v = sectionList.getChildAt(i);
-            if (moving != null) v.animate().cancel();
-            shownAt.put(v, v.getTop() + v.getTranslationY());
-        }
         // The other section's view moves, so the focused card's never leaves the window and keeps focus.
         sectionList.removeView(other.view);
         sectionList.addView(other.view, sectionList.indexOfChild(s.view) + (dir > 0 ? 0 : 1));
+        if (row == null || otherRow == null) {
+            afterLayout(() -> scrollTo(s, focused));
+            return;
+        }
+        int rowTop = row.getTop(), otherTop = otherRow.getTop();
+        ViewGroup rows = (ViewGroup) row.getParent();
+        rows.removeView(otherRow);
+        rows.addView(otherRow, rows.indexOfChild(row) + (dir > 0 ? 0 : 1));
         afterLayout(() -> {
-            if (moving == null) {
-                scrollTo(s, focused);   // the apps section, moved from the app reorder
-                return;
-            }
-            // Each section starts from where it showed and slides to its new place in the overview.
-            for (int i = 0; i < sectionList.getChildCount(); i++) {
-                View v = sectionList.getChildAt(i);
-                Float at = shownAt.get(v);
-                if (at != null) v.setTranslationY(at - v.getTop());
-            }
-            overview();
+            scrollTo(s, focused);
+            slideFrom(row, rowTop);
+            slideFrom(otherRow, otherTop);
         });
     }
 
@@ -905,7 +964,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** The focused card in the top area, with its picture behind; null clears it back to the photo. */
     private void showHero(ShelfItem item) {
-        if (moving != null || item != null && item.source == ShelfItem.Source.PLACEHOLDER) item = null;
+        if (item != null && item.source == ShelfItem.Source.PLACEHOLDER) item = null;
         heroItem = item;
         handler.removeCallbacks(heroPicture);
         if (item == null) {

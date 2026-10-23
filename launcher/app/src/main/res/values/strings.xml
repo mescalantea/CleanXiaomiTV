@@ -39,7 +39,8 @@
     <string name="section_tv">Live TV</string>
     <string name="section_jellyfin">Continue watching</string>
     <string name="section_apps">Apps</string>
-    <string name="section_move_hint">MOVE SECTION  •  UP / DOWN  •  OK / BACK DONE</string>
+    <string name="section_order_title">Order sections</string>
+    <string name="section_order_hint">Up and down to move the section  •  OK or Back when done</string>
     <string name="hero_now">now</string>
     <string name="shelf_new">NEW</string>
     <string name="lock_settings">Profile security</string>
