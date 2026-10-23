@@ -98,6 +98,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView greeting;
     private TextView reorderHint;
     private View btnInputs;
+    /** The top button focused last, where Up from the shelf lands. */
+    private View lastPill;
     /** Null when now_playing is off. */
     private NowPlayingCard nowCard;
     private Shelf shelf;
@@ -352,7 +354,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             @Override
             public void up() {
                 if (cardShowing()) nowCard.defaultButton().requestFocus();
-                else btnSettings.requestFocus();
+                else (lastPill != null && lastPill.getVisibility() == View.VISIBLE ? lastPill : btnSettings).requestFocus();
             }
 
             @Override
@@ -379,22 +381,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 else focusTile(lastFocused % COLUMNS);
                 return true;
             }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                // The left end is the first visible pill (Wi-Fi).
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                // The visible buttons are a closed row: Left and Right move only between them and stop at the ends,
+                // so the focus finder never drops into a shelf card that happens to lie further that way.
                 ViewGroup bar = findViewById(R.id.topButtons);
-                for (int i = 0; i < bar.getChildCount(); i++) {
+                int step = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1;
+                for (int i = bar.indexOfChild(v) + step; i >= 0 && i < bar.getChildCount(); i += step) {
                     View c = bar.getChildAt(i);
-                    if (c.getVisibility() == View.VISIBLE) return c == v;
+                    if (c.getVisibility() == View.VISIBLE && c.isFocusable()) {
+                        c.requestFocus();
+                        break;
+                    }
                 }
-                return false;
-            }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                // The right end is the last visible pill (Settings).
-                ViewGroup bar = findViewById(R.id.topButtons);
-                for (int i = bar.getChildCount() - 1; i >= 0; i--) {
-                    View c = bar.getChildAt(i);
-                    if (c.getVisibility() == View.VISIBLE) return c == v;
-                }
+                return true;
             }
             return false;
         };
@@ -402,21 +401,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnWifi.setOnKeyListener(pillKeys);
         btnSettings.setOnKeyListener(pillKeys);
         btnProfile.setOnKeyListener(pillKeys);
+        for (View pill : new View[] {btnProfile, btnWifi, btnInputs, btnSettings}) {
+            pill.setOnFocusChangeListener((view, focused) -> {
+                if (focused) lastPill = view;
+            });
+        }
         if (cfg.profiles.size() >= 2) {
             showProfile(btnProfile, profile);
             btnProfile.setVisibility(View.VISIBLE);
-            // OK steps to the next person: the shelf reloads at once for them, and their name shows briefly.
-            btnProfile.setOnClickListener(v -> {
-                int at = 0;
-                for (int i = 0; i < cfg.profiles.size(); i++) {
-                    if (cfg.profiles.get(i).name.contentEquals(btnProfile.getContentDescription())) at = i;
-                }
-                Config.Profile next = cfg.profile(cfg.profiles.get((at + 1) % cfg.profiles.size()).name);
-                Config.chooseProfile(this, next.name);
-                showProfile(btnProfile, next);
-                Toast.makeText(this, next.name, Toast.LENGTH_SHORT).show();
-                shelf.use(next);
-            });
+            btnProfile.setOnClickListener(v -> showProfiles(btnProfile, cfg));
         }
 
         packageFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -1352,15 +1345,59 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (c != 0) setAmbient(c);
     }
 
-    /** The profile's initial at once, then its picture in a circle once it has loaded, like Google TV's. */
     private void showProfile(ImageView button, Config.Profile p) {
-        int size = Math.round(36 * density);
         button.setContentDescription(p.name);
-        button.setImageBitmap(initial(p.name, size));
-        // Asked for at about twice the button's size, so the circle stays sharp.
+        setAvatar(button, p, Math.round(36 * density));
+    }
+
+    /** The profile's initial at once, then its picture in a circle once it has loaded, like Google TV's. */
+    private void setAvatar(ImageView view, Config.Profile p, int size) {
+        view.setTag(p.name);
+        view.setImageBitmap(initial(p.name, size));
+        // Asked for at about twice the size shown, so the circle stays sharp.
         shelf.avatar(p, 2 * size, bmp -> {
-            if (p.name.contentEquals(button.getContentDescription())) button.setImageBitmap(roundedArt(bmp, size, 0.5f));
+            if (p.name.equals(view.getTag())) view.setImageBitmap(roundedArt(bmp, size, 0.5f));
         });
+    }
+
+    /**
+     * The account switcher: every profile with its picture and name, the current one marked. OK on another
+     * one switches to it, shows its name and reloads the shelf for it.
+     */
+    private void showProfiles(ImageView button, Config cfg) {
+        View panel = getLayoutInflater().inflate(R.layout.popup_settings, root, false);
+        ((TextView) ((ViewGroup) panel).getChildAt(0)).setText(R.string.profiles);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        final PopupWindow popup = menuPopup(panel, (int) (200 * density));
+        String current = String.valueOf(button.getContentDescription());
+        View currentRow = null;
+        int size = Math.round(24 * density);
+        for (Config.Profile listed : cfg.profiles) {
+            Config.Profile p = cfg.profile(listed.name);
+            View row = getLayoutInflater().inflate(R.layout.item_setting, rows, false);
+            row.getLayoutParams().height = Math.round(40 * density);
+            ImageView icon = row.findViewById(R.id.icon);
+            icon.setImageTintList(null);
+            icon.getLayoutParams().width = icon.getLayoutParams().height = size;
+            setAvatar(icon, p, size);
+            ((TextView) row.findViewById(R.id.title)).setText(p.name);
+            row.findViewById(R.id.status).setVisibility(View.GONE);
+            boolean chosen = p.name.equals(current);
+            row.findViewById(R.id.dot).setVisibility(chosen ? View.VISIBLE : View.INVISIBLE);
+            row.setOnClickListener(v -> {
+                popup.dismiss();
+                if (chosen) return;
+                Config.chooseProfile(this, p.name);
+                showProfile(button, p);
+                Toast.makeText(this, p.name, Toast.LENGTH_SHORT).show();
+                shelf.use(p);
+            });
+            row.setOnKeyListener((v, keyCode, event) -> keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT);
+            rows.addView(row);
+            if (chosen) currentRow = row;
+        }
+        dropIn(popup, panel, button, Gravity.START);
+        (currentRow != null ? currentRow : rows.getChildAt(0)).requestFocus();
     }
 
     /** The name's first letter on a circle in a colour that comes from the name, so each person keeps theirs. */
