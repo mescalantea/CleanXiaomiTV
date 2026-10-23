@@ -24,6 +24,8 @@ import java.util.List;
  * ({@code /sdcard/Android/data/com.majnioui.cleanxiaomitv/files/}). Every key in the JSON is optional and an
  * unknown or badly typed key is ignored, so a theme can change the dock and the look without a rebuild:
  * {@code tools/theme.sh themes/<name>} pushes a theme folder there and restarts Home.
+ * {@code private.json} in the same folder is read after it, for the owner's own values that never go in the
+ * repo: the Jellyfin server and key, the YouTube channels and the weather location.
  *
  * The few switches in the Settings menu (the analog clock, apps per row, advanced effects) are saved on the TV and win over both.
  *
@@ -32,6 +34,7 @@ import java.util.List;
 final class Config {
     private static final String TAG = "TvHome.Config";
     static final String FILE_NAME = "config.json";
+    static final String PRIVATE_NAME = "private.json";
     static final String WALLPAPER_NAME = "wallpaper.jpg";
 
     final List<String> dockApps;
@@ -59,6 +62,12 @@ final class Config {
     final String weatherLongitude;
     final String weatherPlace;
     final boolean showHomeSettingsShortcut;
+    /** Jellyfin server (https://...), API key and user id; the shelf shows nothing from Jellyfin unless all three are set. */
+    final String jellyfinUrl;
+    final String jellyfinApiKey;
+    final String jellyfinUserId;
+    /** YouTube channel ids whose latest videos go on the shelf. */
+    final List<String> youtubeChannels;
     /** Background colour behind everything, #RRGGBB; black unless a theme says otherwise. */
     final int backgroundColor;
     /** Full-screen picture behind the launcher, or null for the plain colour. */
@@ -71,7 +80,8 @@ final class Config {
                    int columns, int gridColumns, int rowsBelowDock, int dockOpacity,
                    boolean advancedEffects,
                    boolean dreamAnalog, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, String vpnApp,
-                   String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut, int backgroundColor,
+                   String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut,
+                   String jellyfinUrl, String jellyfinApiKey, String jellyfinUserId, List<String> youtubeChannels, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
@@ -94,6 +104,10 @@ final class Config {
         this.weatherLongitude = weatherLongitude;
         this.weatherPlace = weatherPlace;
         this.showHomeSettingsShortcut = showHomeSettingsShortcut;
+        this.jellyfinUrl = jellyfinUrl;
+        this.jellyfinApiKey = jellyfinApiKey;
+        this.jellyfinUserId = jellyfinUserId;
+        this.youtubeChannels = Collections.unmodifiableList(youtubeChannels);
         this.backgroundColor = backgroundColor;
         this.wallpaper = wallpaper;
         this.overlayApplied = overlayApplied;
@@ -159,6 +173,18 @@ final class Config {
             homeSettings = bool(json, "show_home_settings_shortcut", homeSettings);
             background = color(json, "background_color", background);
         }
+        String jellyfinUrl = "", jellyfinKey = "", jellyfinUser = "";
+        List<String> youtube = new ArrayList<>();
+        JSONObject own = read(dir != null ? new File(dir, PRIVATE_NAME) : null);
+        if (own != null) {
+            jellyfinUrl = string(own, "jellyfin_url", jellyfinUrl);
+            jellyfinKey = string(own, "jellyfin_api_key", jellyfinKey);
+            jellyfinUser = string(own, "jellyfin_user_id", jellyfinUser);
+            youtube = stringList(own, "youtube_channels", youtube);
+            weatherLat = string(own, "weather_latitude", weatherLat);
+            weatherLon = string(own, "weather_longitude", weatherLon);
+            weatherPlace = string(own, "weather_place", weatherPlace);
+        }
         // Switched on the TV itself (Settings menu): wins over config.xml and a theme.
         SharedPreferences toggles = toggles(ctx);
         dreamAnalog = toggles.getBoolean(DREAM_ANALOG, dreamAnalog);
@@ -174,7 +200,8 @@ final class Config {
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), Math.max(0, Math.min(100, dockOpacity)),
                 advancedEffects, dreamAnalog, photos, playing, homePhoto, vpn,
-                weatherLat, weatherLon, weatherPlace, homeSettings, background,
+                weatherLat, weatherLon, weatherPlace, homeSettings,
+                jellyfinUrl, jellyfinKey, jellyfinUser, youtube, background,
                 wallpaper, applied);
     }
 

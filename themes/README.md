@@ -42,6 +42,18 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 | `background_color` | `#RRGGBB` | Colour behind everything; black by default |
 | `wallpaper` | bool | Show `wallpaper.jpg` from the theme folder (`true`), or ignore it (`false`) |
 
+## Private values
+
+`private.json`, pushed with `tools/theme.sh --private <file>`, sits next to `config.json` and is read after it. It holds what must not be committed:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `jellyfin_url`, `jellyfin_api_key`, `jellyfin_user_id` | string | Jellyfin server (https), an API key made in its dashboard, and your user id; all three are needed for Jellyfin on the shelf |
+| `youtube_channels` | list of channel ids | Channels whose latest videos go on the shelf |
+| `weather_latitude`, `weather_longitude`, `weather_place` | string | Your weather location, over `config.xml` and the theme |
+
+See [`private.example/private.json`](private.example/private.json).
+
 ## Wallpapers
 
 `wallpaper.jpg` is drawn full screen behind the launcher, centre-cropped. Keep it dark, 1920×1080 and

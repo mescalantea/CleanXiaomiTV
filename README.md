@@ -57,6 +57,16 @@ tools/venv/bin/python -I tools/tv.py 'settings put secure screensaver_components
 
 Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the dock apps, hidden apps, the weather city (Madrid by default), `grid_columns`, and switches for each feature (`home_photo`, `dream_photos`, `dream_analog`, `now_playing`). The analog clock switch can also be flipped on the TV: Settings pill, then the On/Off row at the bottom; that choice wins over `config.xml` and a theme. Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
 
+### Your own values
+
+The Jellyfin server, its API key and your user id, the YouTube channels for the shelf and your weather location stay out of the repo, in a `private.json` on each TV. Copy [`themes/private.example/private.json`](themes/private.example/private.json) to `themes/private/private.json` (ignored by git), fill it in and push it to every TV:
+
+```bash
+TV_HOST=<tv-ip> tools/theme.sh --private themes/private/private.json
+```
+
+Run it once per TV, with that TV's IP. `tools/theme.sh --reset` leaves `private.json` in place.
+
 ## Undo
 
 ```bash
