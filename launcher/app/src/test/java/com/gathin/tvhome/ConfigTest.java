@@ -49,6 +49,14 @@ public class ConfigTest {
     }
 
     @Test
+    public void tvChannelsAddToTheFlatOnesInOrderOnce() {
+        Config.Profile flat = new Config.Profile("", "", "", Collections.emptyList(), "", Arrays.asList("La1.TV", "La2.TV"));
+        Config.Profile own = new Config.Profile("Alex", "", "", Collections.emptyList(), "", Arrays.asList("TVG.TV", "La1.TV"));
+        assertEquals(Arrays.asList("La1.TV", "La2.TV", "TVG.TV"), Config.merge(Arrays.asList(own), "Alex", flat).tvChannels);
+        assertEquals(Arrays.asList("La1.TV", "La2.TV"), Config.merge(Collections.emptyList(), "", flat).tvChannels);
+    }
+
+    @Test
     public void unknownChoiceTakesTheFirstProfileAndNoProfilesTheFlatKeys() {
         Config.Profile base = new Config.Profile("", "flat", "", Arrays.asList("UCx"));
         Config.Profile first = Config.merge(Arrays.asList(new Config.Profile("Alex", "u1", "", Collections.emptyList())),

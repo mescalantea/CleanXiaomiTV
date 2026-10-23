@@ -62,7 +62,7 @@ final class Shelf {
     private final Exits exits;
     private final String jellyfinUrl, jellyfinKey, youtubeKey;
     private String profileName, jellyfinUser, youtubeChannelId;
-    private List<String> youtubeChannels;
+    private List<String> youtubeChannels, tvChannels;
     /** Bumped on a profile switch, so a fetch still running for the previous profile is dropped. */
     private int generation;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -117,6 +117,7 @@ final class Shelf {
         jellyfinUser = profile.jellyfinUserId;
         youtubeChannelId = profile.youtubeChannelId;
         youtubeChannels = profile.youtubeChannels;
+        tvChannels = profile.tvChannels;
         File cache = YouTubeCache.file(activity, profileName);
         sections.set(ShelfSections.YOUTUBE, YouTubeCache.load(cache));
         youtubeAt = cache.isFile() ? cache.lastModified() : 0;
@@ -146,13 +147,15 @@ final class Shelf {
         boolean jellyfin = !jellyfinUrl.isEmpty() && !jellyfinKey.isEmpty() && !jellyfinUser.isEmpty() && installed(Jellyfin.PACKAGE);
         boolean subscriptions = !youtubeKey.isEmpty() && !youtubeChannelId.isEmpty();
         boolean youtube = (subscriptions || !youtubeChannels.isEmpty()) && installed(YouTubeFeed.PACKAGE);
+        boolean live = liveOn();
+        if (!live) sections.set(ShelfSections.LIVE, Collections.emptyList());
         if (!jellyfin) {
             sections.set(ShelfSections.RESUME, Collections.emptyList());
             sections.set(ShelfSections.NEXT_UP, Collections.emptyList());
         }
         if (!youtube) sections.set(ShelfSections.YOUTUBE, Collections.emptyList());
         long now = SystemClock.elapsedRealtime();
-        if ((!jellyfin && !youtube) || loading || now - refreshedAt < REFRESH_MS) {
+        if ((!jellyfin && !youtube && !live) || loading || now - refreshedAt < REFRESH_MS) {
             show();
             return;
         }
@@ -163,8 +166,10 @@ final class Shelf {
             sections.start(ShelfSections.NEXT_UP);
         }
         if (feeds) sections.start(ShelfSections.YOUTUBE);
+        if (live) sections.start(ShelfSections.LIVE);
         show();
         loading = true;
+        final List<String> channelsOnTv = tvChannels;
         final String episode = activity.getString(R.string.shelf_episode);
         final String user = jellyfinUser;
         final List<String> fixed = youtubeChannels;
@@ -172,6 +177,7 @@ final class Shelf {
         final File cache = YouTubeCache.file(activity, profileName);
         final int gen = generation;
         io.execute(() -> {
+            if (live) post(gen, ShelfSections.LIVE, LiveTv.query(activity, channelsOnTv));
             if (jellyfin) {
                 post(gen, ShelfSections.RESUME, jellyfin(() -> Jellyfin.resume(jellyfinUrl, jellyfinKey, user, episode)));
                 post(gen, ShelfSections.NEXT_UP, jellyfin(() -> Jellyfin.nextUp(jellyfinUrl, jellyfinKey, user, episode)));
@@ -207,6 +213,21 @@ final class Shelf {
         String key = ShelfSections.key(item);
         for (ShelfItem i : fresh) if (ShelfSections.key(i).equals(key)) return false;
         return true;
+    }
+
+    private boolean liveOn() {
+        return !tvChannels.isEmpty() && installed(LiveTv.PACKAGE);
+    }
+
+    /** What is on the live channels now, again: called every minute so programmes and progress keep up. */
+    void tick() {
+        if (!liveOn()) return;
+        final List<String> ids = tvChannels;
+        final int gen = generation;
+        io.execute(() -> {
+            List<ShelfItem> now = LiveTv.query(activity, ids);
+            if (now != null) post(gen, ShelfSections.LIVE, now);
+        });
     }
 
     private interface Fetch {
@@ -310,6 +331,15 @@ final class Shelf {
 
     private void launch(ShelfItem item) {
         if (item.source == ShelfItem.Source.PLACEHOLDER) return;
+        if (item.source == ShelfItem.Source.LIVE) {
+            Intent watch = LiveTv.watch(activity, item.id);
+            if (watch == null) return;
+            try {
+                activity.startActivity(watch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (ActivityNotFoundException | SecurityException ignored) {
+            }
+            return;
+        }
         Intent direct, fallback;
         if (item.source == ShelfItem.Source.JELLYFIN) {
             direct = new Intent(Intent.ACTION_VIEW, Uri.parse(Jellyfin.uuid(item.id))).setClassName(Jellyfin.PACKAGE, Jellyfin.STARTUP);
@@ -432,6 +462,12 @@ final class Shelf {
             h.image.setAlpha(1f);
             h.image.setImageDrawable(null);
             h.image.setTag(item.image);
+            // Channel logos are shown whole, small, above the names; posters fill the card.
+            boolean logo = item.source == ShelfItem.Source.LIVE;
+            float d = activity.getResources().getDisplayMetrics().density;
+            h.image.setScaleType(logo ? ImageView.ScaleType.FIT_CENTER : ImageView.ScaleType.CENTER_CROP);
+            h.image.setPadding(logo ? Math.round(36 * d) : 0, logo ? Math.round(10 * d) : 0,
+                    logo ? Math.round(36 * d) : 0, logo ? Math.round(36 * d) : 0);
             if (item.image != null) loadPoster(item, h.image, h.skeleton);
         }
 

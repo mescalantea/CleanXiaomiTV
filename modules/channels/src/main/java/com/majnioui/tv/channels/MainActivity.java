@@ -1,6 +1,7 @@
 package com.majnioui.tv.channels;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
@@ -64,6 +65,8 @@ import java.util.concurrent.Executors;
  */
 public class MainActivity extends Activity {
     private static final String TAG = "Channels";
+    /** tvg-id of the channel to start on, from another app. */
+    static final String EXTRA_TVG_ID = "tvg_id";
     private static final long BAR_MS = 4000;
     private static final String DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
@@ -153,9 +156,22 @@ public class MainActivity extends Activity {
     protected void onStart() {
         super.onStart();
         if (channels.isEmpty()) return;
+        // Opened on a channel from elsewhere (the launcher's shelf): play that one, once.
+        int asked = indexOf(getIntent().getStringExtra(EXTRA_TVG_ID));
+        if (asked >= 0) {
+            getIntent().removeExtra(EXTRA_TVG_ID);
+            play(asked);
+            return;
+        }
         int last = indexOf(prefs.getString("last", ""));
         play(last >= 0 ? last : 0);
         if (last < 0) openMenu();   // first time: show what there is
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
     }
 
     @Override
@@ -192,6 +208,7 @@ public class MainActivity extends Activity {
     }
 
     private int indexOf(String id) {
+        if (id == null) return -1;
         for (int i = 0; i < channels.size(); i++) if (channels.get(i).id.equals(id)) return i;
         return -1;
     }

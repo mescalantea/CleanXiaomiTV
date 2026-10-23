@@ -7,17 +7,18 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The shelf's rows in a fixed order (resume, next up, YouTube). A section that loads with nothing to show
+ * The shelf's rows in a fixed order (resume, next up, live TV, YouTube). A section that loads with nothing to show
  * yet ends in placeholder cards until it is done, so results can arrive one source at a time, and YouTube
  * feed by feed, without anything on screen moving.
  */
 final class ShelfSections {
-    static final int RESUME = 0, NEXT_UP = 1, YOUTUBE = 2;
-    private static final int[] PLACEHOLDERS = {2, 2, 3};
+    static final int RESUME = 0, NEXT_UP = 1, LIVE = 2, YOUTUBE = 3;
+    private static final int[] PLACEHOLDERS = {2, 2, 2, 3};
 
     @SuppressWarnings("unchecked")
-    private final List<ShelfItem>[] items = new List[] {Collections.emptyList(), Collections.emptyList(), Collections.emptyList()};
-    private final boolean[] loading = new boolean[3];
+    private final List<ShelfItem>[] items = new List[] {Collections.emptyList(), Collections.emptyList(),
+            Collections.emptyList(), Collections.emptyList()};
+    private final boolean[] loading = new boolean[items.length];
 
     /** A fetch for this section starts; it shows placeholders only while it has no items of its own. */
     void start(int section) {
@@ -41,7 +42,7 @@ final class ShelfSections {
     }
 
     void clear() {
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < items.length; i++) {
             items[i] = Collections.emptyList();
             loading[i] = false;
         }
@@ -52,7 +53,7 @@ final class ShelfSections {
         List<ShelfItem> out = new ArrayList<>();
         Set<String> resumed = new HashSet<>();
         for (ShelfItem i : items[RESUME]) resumed.add(i.id);
-        for (int s = 0; s < 3; s++) {
+        for (int s = 0; s < items.length; s++) {
             for (ShelfItem i : items[s]) if (s != NEXT_UP || !resumed.contains(i.id)) out.add(i);
             if (!loading[s]) continue;
             for (int n = 0; n < PLACEHOLDERS[s]; n++) {

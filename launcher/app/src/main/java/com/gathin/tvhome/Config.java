@@ -64,6 +64,8 @@ final class Config {
     final String jellyfinUserId;
     /** YouTube channel ids whose latest videos go on the shelf. */
     final List<String> youtubeChannels;
+    /** tvg-ids of the live channels for the shelf's "En directo" part, in order. */
+    final List<String> tvChannels;
     /** YouTube Data API key, to read a person's public subscriptions; empty without one. */
     final String youtubeApiKey;
     /** The person's own YouTube channel id, whose subscriptions feed the shelf (with youtubeApiKey). */
@@ -79,14 +81,17 @@ final class Config {
         final List<String> youtubeChannels;
         /** Picture for the profile button (https), or empty for the Jellyfin user's avatar. */
         final String photo;
+        final List<String> tvChannels;
 
         Profile(String name, String jellyfinUserId, String youtubeChannelId, List<String> youtubeChannels) {
-            this(name, jellyfinUserId, youtubeChannelId, youtubeChannels, "");
+            this(name, jellyfinUserId, youtubeChannelId, youtubeChannels, "", Collections.emptyList());
         }
 
-        Profile(String name, String jellyfinUserId, String youtubeChannelId, List<String> youtubeChannels, String photo) {
+        Profile(String name, String jellyfinUserId, String youtubeChannelId, List<String> youtubeChannels, String photo,
+                List<String> tvChannels) {
             this.name = name;
             this.photo = photo;
+            this.tvChannels = Collections.unmodifiableList(tvChannels);
             this.jellyfinUserId = jellyfinUserId;
             this.youtubeChannelId = youtubeChannelId;
             this.youtubeChannels = Collections.unmodifiableList(youtubeChannels);
@@ -104,7 +109,7 @@ final class Config {
                    int columns, int gridColumns, int rowsBelowDock,
                    boolean dreamAnalog, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut,
-                   String jellyfinUrl, String jellyfinApiKey, String jellyfinUserId, List<String> youtubeChannels, String youtubeApiKey, String youtubeChannelId, List<Profile> profiles, int backgroundColor,
+                   String jellyfinUrl, String jellyfinApiKey, String jellyfinUserId, List<String> youtubeChannels, List<String> tvChannels, String youtubeApiKey, String youtubeChannelId, List<Profile> profiles, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
@@ -129,6 +134,7 @@ final class Config {
         this.jellyfinApiKey = jellyfinApiKey;
         this.jellyfinUserId = jellyfinUserId;
         this.youtubeChannels = Collections.unmodifiableList(youtubeChannels);
+        this.tvChannels = Collections.unmodifiableList(tvChannels);
         this.youtubeApiKey = youtubeApiKey;
         this.youtubeChannelId = youtubeChannelId;
         this.profiles = Collections.unmodifiableList(profiles);
@@ -194,7 +200,7 @@ final class Config {
             background = color(json, "background_color", background);
         }
         String jellyfinUrl = "", jellyfinKey = "", jellyfinUser = "", youtubeKey = "", youtubeId = "";
-        List<String> youtube = new ArrayList<>();
+        List<String> youtube = new ArrayList<>(), tv = new ArrayList<>();
         List<Profile> profiles = new ArrayList<>();
         JSONObject own = read(dir != null ? new File(dir, PRIVATE_NAME) : null);
         if (own != null) {
@@ -202,6 +208,7 @@ final class Config {
             jellyfinKey = string(own, "jellyfin_api_key", jellyfinKey);
             jellyfinUser = string(own, "jellyfin_user_id", jellyfinUser);
             youtube = stringList(own, "youtube_channels", youtube);
+            tv = stringList(own, "tv_channels", tv);
             youtubeKey = string(own, "youtube_api_key", youtubeKey);
             youtubeId = string(own, "youtube_channel_id", youtubeId);
             profiles = profiles(own);
@@ -224,7 +231,7 @@ final class Config {
                 Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow),
                 dreamAnalog, photos, playing, homePhoto, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings,
-                jellyfinUrl, jellyfinKey, jellyfinUser, youtube, youtubeKey, youtubeId, profiles, background,
+                jellyfinUrl, jellyfinKey, jellyfinUser, youtube, tv, youtubeKey, youtubeId, profiles, background,
                 wallpaper, applied);
     }
 
@@ -234,7 +241,7 @@ final class Config {
      * the flat keys alone.
      */
     Profile profile(String name) {
-        return merge(profiles, name, new Profile("", jellyfinUserId, youtubeChannelId, youtubeChannels));
+        return merge(profiles, name, new Profile("", jellyfinUserId, youtubeChannelId, youtubeChannels, "", tvChannels));
     }
 
     static Profile merge(List<Profile> profiles, String name, Profile flat) {
@@ -242,14 +249,21 @@ final class Config {
         for (Profile p : profiles) if (p.name.equals(name)) chosen = p;
         if (chosen == null && !profiles.isEmpty()) chosen = profiles.get(0);
         if (chosen == null) return flat;
-        List<String> channels = new ArrayList<>(flat.youtubeChannels);
-        for (String c : chosen.youtubeChannels) if (!channels.contains(c)) channels.add(c);
         return new Profile(chosen.name, chosen.jellyfinUserId.isEmpty() ? flat.jellyfinUserId : chosen.jellyfinUserId,
-                chosen.youtubeChannelId.isEmpty() ? flat.youtubeChannelId : chosen.youtubeChannelId, channels, chosen.photo);
+                chosen.youtubeChannelId.isEmpty() ? flat.youtubeChannelId : chosen.youtubeChannelId,
+                union(flat.youtubeChannels, chosen.youtubeChannels), chosen.photo, union(flat.tvChannels, chosen.tvChannels));
+    }
+
+    /** a, then whatever of b it lacks, in order. */
+    static List<String> union(List<String> a, List<String> b) {
+        List<String> out = new ArrayList<>(a);
+        for (String s : b) if (!out.contains(s)) out.add(s);
+        return out;
     }
 
     /**
-     * "profiles": [{"name": ..., "jellyfin_user_id": ..., "youtube_channel_id": ..., "youtube_channels": [...], "photo": "https://..."}];
+     * "profiles": [{"name": ..., "jellyfin_user_id": ..., "youtube_channel_id": ..., "youtube_channels": [...], "tv_channels": [...],
+     * "photo": "https://..."}];
      * entries without a name are skipped, and so is a photo that isn't https.
      */
     static List<Profile> profiles(JSONObject o) {
@@ -263,7 +277,8 @@ final class Config {
             if (name.isEmpty()) continue;
             String photo = string(p, "photo", "");
             out.add(new Profile(name, string(p, "jellyfin_user_id", ""), string(p, "youtube_channel_id", ""),
-                    stringList(p, "youtube_channels", new ArrayList<>()), photo.startsWith("https://") ? photo : ""));
+                    stringList(p, "youtube_channels", new ArrayList<>()), photo.startsWith("https://") ? photo : "",
+                    stringList(p, "tv_channels", new ArrayList<>())));
         }
         return out;
     }

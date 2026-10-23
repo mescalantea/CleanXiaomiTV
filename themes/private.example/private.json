@@ -4,6 +4,7 @@
   "jellyfin_user_id": "your-user-id",
   "youtube_channels": ["UCxxxxxxxxxxxxxxxxxxxxxx"],
   "youtube_api_key": "your-youtube-data-api-key",
+  "tv_channels": ["La1.TV", "La2.TV"],
   "profiles": [
     {"name": "Alex", "jellyfin_user_id": "alex-user-id", "youtube_channel_id": "UCbbbbbbbbbbbbbbbbbbbbbb", "youtube_channels": ["UCaaaaaaaaaaaaaaaaaaaaaa"]},
     {"name": "Sam", "jellyfin_user_id": "sam-user-id", "photo": "https://example.com/sam.jpg"}
