@@ -6,7 +6,6 @@
     <string name="settings">Settings</string>
     <string name="reorder_hint">MOVE  •  ARROWS TO MOVE THE APP, UP / DOWN AT THE EDGE MOVES THE SECTION  •  OK / BACK EXIT</string>
     <string name="system_settings">Android Settings</string>
-    <string name="choose_input">Inputs</string>
     <string name="connected">Connected</string>
     <string name="standby">Standby</string>
     <string name="not_connected">No device</string>

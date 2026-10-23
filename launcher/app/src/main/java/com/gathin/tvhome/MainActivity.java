@@ -1095,7 +1095,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     // ---- top bar ---------------------------------------------------------------------------------
 
-    /** Settings stays a compact launcher menu so dock editing is available with only the remote. */
+    /** Settings stays a compact launcher menu, so it all works with only the remote. */
     private void showSettingsMenu() {
         View anchor = findViewById(R.id.btnSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_settings, root, false);

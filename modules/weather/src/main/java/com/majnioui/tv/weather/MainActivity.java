@@ -251,7 +251,7 @@ public class MainActivity extends Activity {
         query.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
         query.setTextColor(0xFFFFFFFF);
         query.setHintTextColor(0x66FFFFFF);
-        query.setHint("e.g. Rabat, Marrakech, Paris");
+        query.setHint(R.string.weather_search_example);
         query.setTypeface(font);
         query.setFontVariationSettings("'wght' 500");
         query.setPadding(dp(20), dp(14), dp(20), dp(14));

@@ -4,7 +4,6 @@
     <string name="inputs">Sources</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Paramètres</string>
-    <string name="choose_input">Sources</string>
     <string name="connected">Connecté</string>
     <string name="standby">En veille</string>
     <string name="not_connected">Aucun appareil</string>

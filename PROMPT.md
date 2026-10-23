@@ -54,26 +54,25 @@ Launcher
   Android TV launcher instead (Java, AndroidX RecyclerView, minSdk matching the TV, debug build is fine),
   install it over ADB, set it as the default home and disable the stock launcher. If several apps claim
   the HOME intent, set the default with `cmd package set-home-activity`.
-- Design, Apple TV 4K style: pitch black background; a dock row at the bottom of the screen inside a
-  slightly lighter rounded band holding the four apps I pick (ask me which, and the order); the rest of
-  the apps in a 4-column grid below that scrolls up when I press Down; one translucent "glass" highlight
-  that springs from tile to tile instead of per-tile borders; the focused tile scales up slightly and
-  shows its name underneath; above the dock, the focused dock app's name in large light type with an
-  ambient glow in a colour sampled from its banner; frosted pill buttons top right for Inputs, Wi-Fi
-  (showing the network name) and Settings; a greeting, a large thin clock and the date top left in a
-  downloaded open-licence typeface such as Outfit. Inputs opens a compact glass dropdown under the pill
-  listing the HDMI ports, AV and Live TV, switching via the TV input framework.
-- Make D-pad navigation deterministic: Up/Down move exactly one row, Up from the dock goes to the top
-  bar, the ends of the top bar don't fall through to tiles. Remember the last focused tile.
-- Keep it light: the TV has about 1 GB of RAM. No blur, no video, no network polling.
+- Design, Google TV style: pitch black background behind the photo of the day; a greeting, a large clock,
+  the weather and the date top left in a downloaded open-licence typeface such as Outfit; pill buttons top
+  right for Inputs, Wi-Fi (showing the network name) and Settings that turn white when focused. Below, a
+  hero that previews the focused card (title, source, a line of description, its picture behind). Then one
+  titled section per source, which slides up to a fixed height as focus reaches it: rows of cards, and the
+  apps in a grid led by the four I pick (ask me which, and the order); the focused card scales up
+  slightly. Holding OK on a card opens a list to reorder the sections. Inputs opens a compact dropdown
+  under the pill listing the HDMI ports, AV and Live TV, switching via the TV input framework.
+- Make D-pad navigation deterministic: Up/Down move exactly one row, Up from the first section goes to the
+  top bar, the ends of the top bar don't fall through to tiles. Remember the last focused tile.
+- Keep it light: the TV has about 1 GB of RAM. No blur and no video on Home.
 
 Verify
 - After each change, inject remote key presses over ADB, take a screenshot from the TV and look at it.
   Fix what you see before moving on.
 - When done, give me a restore script, a build-and-install script, and a README that explains how to
-  re-enable any app and how to change the dock order or the wallpaper.
+  re-enable any app and how to change the app order or the wallpaper.
 
 ---
 
-Expect to answer three or four checklist questions (which apps you use, which four go in the dock,
+Expect to answer three or four checklist questions (which apps you use, which four lead the apps,
 whether to keep the voice assistant, Chromecast and firmware updates). Everything is reversible.

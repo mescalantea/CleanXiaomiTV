@@ -11,6 +11,7 @@
     <string name="weather_today">Today</string>
     <string name="weather_updated">Open-Meteo · updated %1$s</string>
     <string name="weather_search_hint">Type a city name, then press Search on the keyboard.</string>
+    <string name="weather_search_example">e.g. Madrid, Sevilla, Paris</string>
     <string name="weather_searching">Searching…</string>
     <string name="weather_search_offline">Can\'t reach the city search. Check the connection and try again.</string>
     <string name="weather_no_city">No city found. Try another spelling.</string>

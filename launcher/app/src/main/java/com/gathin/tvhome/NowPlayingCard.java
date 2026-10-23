@@ -20,7 +20,7 @@ import android.widget.TextView;
  * in the pill's round end, the song with moving bars, the artist, and previous / play-pause / next. The
  * pill takes on the cover's colour, strongest behind it and fading towards the buttons, so cover and pill
  * read as one. OK on a button does that; holding OK
- * opens the music app. Up leaves for the top buttons, Down for the dock (see MainActivity).
+ * opens the music app. Up leaves for the top buttons, Down for the first section (see MainActivity).
  */
 final class NowPlayingCard extends LinearLayout {
     interface Exits {
