@@ -33,6 +33,7 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -203,47 +204,67 @@ final class Shelf {
         final String person = youtubeChannelId;
         final File cache = YouTubeCache.file(activity, profileName);
         final int gen = generation;
-        io.execute(() -> {
+        // One task per source, so a server that does not answer only holds up its own sections.
+        List<Runnable> tasks = new ArrayList<>();
+        if (live || sports) tasks.add(() -> {
             if (live) post(gen, ShelfSections.LIVE, LiveTv.query(activity, channelsOnTv));
             if (sports) post(gen, ShelfSections.SPORTS, LiveTv.sports(activity));
-            if (jellyfin) {
-                List<ShelfItem> resume = jellyfin(() -> Jellyfin.resume(jellyfinUrl, jellyfinKey, user, episode));
-                post(gen, ShelfSections.RESUME, resume);
-                List<ShelfItem> next = jellyfin(() -> Jellyfin.nextUp(jellyfinUrl, jellyfinKey, user, episode));
-                post(gen, ShelfSections.NEXT_UP, next);
-                Set<String> started = new HashSet<>(), shown = new HashSet<>();
-                for (List<ShelfItem> list : Arrays.asList(resume, next)) {
-                    if (list == null) continue;
-                    for (ShelfItem i : list) {
-                        shown.add(i.id);
-                        if (!i.channel.isEmpty()) started.add(i.channel);
-                    }
+        });
+        if (jellyfin) tasks.add(() -> {
+            List<ShelfItem> resume = jellyfin(() -> Jellyfin.resume(jellyfinUrl, jellyfinKey, user, episode));
+            post(gen, ShelfSections.RESUME, resume);
+            List<ShelfItem> next = jellyfin(() -> Jellyfin.nextUp(jellyfinUrl, jellyfinKey, user, episode));
+            post(gen, ShelfSections.NEXT_UP, next);
+            Set<String> started = new HashSet<>(), shown = new HashSet<>();
+            for (List<ShelfItem> list : Arrays.asList(resume, next)) {
+                if (list == null) continue;
+                for (ShelfItem i : list) {
+                    shown.add(i.id);
+                    if (!i.channel.isEmpty()) started.add(i.channel);
                 }
-                post(gen, ShelfSections.NEW, jellyfin(() -> Jellyfin.newEpisodes(jellyfinUrl, jellyfinKey, user, episode, started, shown)));
             }
-            if (feeds) {
-                List<String> channels = subscriptions
-                        ? YouTubeSubscriptions.merge(fixed, YouTubeSubscriptions.channels(activity, youtubeKey, person)) : fixed;
-                // Videos only ever join at the end, so nothing moves under the user while feeds arrive.
-                List<ShelfItem> videos = YouTubeFeed.fetch(channels, batch -> handler.post(() -> {
-                    if (gen != generation) return;
-                    sections.append(ShelfSections.YOUTUBE, batch, YOUTUBE_MAX);
-                    show();
-                }));
-                long at = System.currentTimeMillis();
-                // Newest first for the next start; this session keeps its order.
-                if (!videos.isEmpty()) YouTubeCache.save(cache, YouTubeFeed.append(Collections.emptyList(), videos, YOUTUBE_MAX));
-                handler.post(() -> {
-                    if (gen != generation) return;
-                    if (!videos.isEmpty()) youtubeAt = at;
-                    sections.finish(ShelfSections.YOUTUBE);
-                    show();
-                });
-            }
+            post(gen, ShelfSections.NEW, jellyfin(() -> Jellyfin.newEpisodes(jellyfinUrl, jellyfinKey, user, episode, started, shown)));
+        });
+        if (feeds) tasks.add(() -> {
+            List<String> channels = subscriptions
+                    ? YouTubeSubscriptions.merge(fixed, YouTubeSubscriptions.channels(activity, youtubeKey, person)) : fixed;
+            // Videos only ever join at the end, so nothing moves under the user while feeds arrive.
+            List<ShelfItem> videos = YouTubeFeed.fetch(channels, batch -> handler.post(() -> {
+                if (gen != generation) return;
+                sections.append(ShelfSections.YOUTUBE, batch, YOUTUBE_MAX);
+                show();
+            }));
+            long at = System.currentTimeMillis();
+            // Newest first for the next start; this session keeps its order.
+            if (!videos.isEmpty()) YouTubeCache.save(cache, YouTubeFeed.append(Collections.emptyList(), videos, YOUTUBE_MAX));
             handler.post(() -> {
-                if (gen == generation) loading = false;
+                if (gen != generation) return;
+                if (!videos.isEmpty()) youtubeAt = at;
+                sections.finish(ShelfSections.YOUTUBE);
+                show();
             });
         });
+        java.util.concurrent.atomic.AtomicInteger left = new java.util.concurrent.atomic.AtomicInteger(tasks.size());
+        if (tasks.isEmpty()) loading = false;
+        for (Runnable task : tasks) run(() -> {
+            try {
+                task.run();
+            } finally {
+                if (left.decrementAndGet() == 0) handler.post(() -> {
+                    if (gen == generation) loading = false;
+                });
+            }
+        });
+    }
+
+    /** Runs on the background threads, unless the shelf has been stopped. */
+    private void run(Runnable task) {
+        if (io.isShutdown()) return;
+        try {
+            io.execute(task);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Stopped between the check and the call.
+        }
     }
 
     /** Whether the card at this place has no counterpart in the new rows (see areItemsTheSame). */
@@ -263,7 +284,7 @@ final class Shelf {
         if (!installed(LiveTv.PACKAGE)) return;
         final List<String> ids = tvChannels;
         final int gen = generation;
-        io.execute(() -> {
+        run(() -> {
             if (!ids.isEmpty()) {
                 List<ShelfItem> now = LiveTv.query(activity, ids);
                 if (now != null) post(gen, ShelfSections.LIVE, now);
@@ -379,7 +400,7 @@ final class Shelf {
             done.accept(cached);
             return;
         }
-        io.execute(() -> {
+        run(() -> {
             Bitmap bmp = download(url, key, size);
             if (bmp != null) handler.post(() -> {
                 posters.put(url, bmp);
@@ -399,7 +420,7 @@ final class Shelf {
         final String key = item.source == ShelfItem.Source.JELLYFIN ? jellyfinKey : null;
         // Not every YouTube video has a full-size still; the smaller one always exists.
         final String fallback = item.source == ShelfItem.Source.YOUTUBE ? "https://i.ytimg.com/vi/" + item.id + "/hqdefault.jpg" : null;
-        io.execute(() -> {
+        run(() -> {
             Bitmap bmp = download(url, key, width);
             if (bmp == null && fallback != null) bmp = download(fallback, null, width);
             final Bitmap got = bmp;
@@ -420,7 +441,7 @@ final class Shelf {
         final String url = item.image;
         final boolean jellyfin = item.source == ShelfItem.Source.JELLYFIN;
         final int width = Math.round(200 * activity.getResources().getDisplayMetrics().density);
-        io.execute(() -> {
+        run(() -> {
             Bitmap bmp = download(url, jellyfin ? jellyfinKey : null, width);
             if (bmp == null) return;
             handler.post(() -> {

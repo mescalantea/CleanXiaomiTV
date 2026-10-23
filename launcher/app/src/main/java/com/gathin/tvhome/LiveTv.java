@@ -17,8 +17,9 @@ import java.util.TimeZone;
  */
 final class LiveTv {
     static final String PACKAGE = "com.majnioui.tv.channels";
-    private static final String NOW = "content://com.majnioui.tv.channels.guide/now";
-    private static final String SPORTS = "content://com.majnioui.tv.channels.guide/sports";
+    private static final String AUTHORITY = "com.majnioui.tv.channels.guide";
+    private static final String NOW = "content://" + AUTHORITY + "/now";
+    private static final String SPORTS = "content://" + AUTHORITY + "/sports";
     /** Extra the Channels app reads to start on a channel. */
     static final String EXTRA_TVG_ID = "tvg_id";
     private static final String TAG = "TvHome.Live";
@@ -39,6 +40,9 @@ final class LiveTv {
     private static List<ShelfItem> query(Context ctx, String uri, String[] ids, boolean sports) {
         List<ShelfItem> out = new ArrayList<>();
         long now = System.currentTimeMillis();
+        // Only the Channels app's own guide: another app could claim the authority first.
+        android.content.pm.ProviderInfo provider = ctx.getPackageManager().resolveContentProvider(AUTHORITY, 0);
+        if (provider == null || !PACKAGE.equals(provider.packageName)) return null;
         try (Cursor c = ctx.getContentResolver().query(Uri.parse(uri), null, null, ids, null)) {
             if (c == null) return null;
             while (c.moveToNext()) {
@@ -47,7 +51,7 @@ final class LiveTv {
                         : item(c.getString(0), c.getString(1), c.getString(2), c.getString(3), c.getLong(4), c.getLong(5), now));
             }
         } catch (Exception e) {
-            Log.w(TAG, "guide: " + e);
+            Log.w(TAG, "guide: " + e.getClass().getSimpleName());
             return null;
         }
         return out;

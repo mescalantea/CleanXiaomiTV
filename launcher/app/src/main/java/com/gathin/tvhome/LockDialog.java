@@ -102,7 +102,10 @@ final class LockDialog {
         showDots.run();
 
         // One digit typed (on the pad or with a number key), or -1 to delete the last one.
+        // Set while a code is checked and while a wrong one clears: keys then do nothing.
+        boolean[] busy = {false};
         java.util.function.IntConsumer press = digit -> {
+            if (busy[0]) return;
             long wait = attempts.waitLeft(System.currentTimeMillis());
             if (wait > 0) {
                 message.setText(activity.getString(R.string.lock_wait, (wait + 999) / 1000));
@@ -117,21 +120,30 @@ final class LockDialog {
             showDots.run();
             if (typed.length() < length) return;
             String answer = typed.toString();
-            if (check.test(answer)) {
-                attempts.passed();
-                dialog.dismiss();
-                done.accept(answer);
-                return;
-            }
-            attempts.failed(System.currentTimeMillis());
-            long left = attempts.waitLeft(System.currentTimeMillis());
-            message.setText(left > 0 ? activity.getString(R.string.lock_wait, (left + 999) / 1000) : activity.getString(R.string.lock_wrong));
-            dots.animate().translationX(12 * d).setDuration(50).withEndAction(() -> dots.animate().translationX(-12 * d)
-                    .setDuration(80).withEndAction(() -> dots.animate().translationX(0).setDuration(60).start()).start()).start();
-            handler.postDelayed(() -> {
-                typed.setLength(0);
-                showDots.run();
-            }, 250);
+            busy[0] = true;
+            // The PIN's hash is slow on purpose; it is worked out off the main thread.
+            new Thread(() -> {
+                boolean right = check.test(answer);
+                handler.post(() -> {
+                    if (!dialog.isShowing()) return;
+                    if (right) {
+                        attempts.passed();
+                        dialog.dismiss();
+                        done.accept(answer);
+                        return;
+                    }
+                    attempts.failed(System.currentTimeMillis());
+                    long left = attempts.waitLeft(System.currentTimeMillis());
+                    message.setText(left > 0 ? activity.getString(R.string.lock_wait, (left + 999) / 1000) : activity.getString(R.string.lock_wrong));
+                    dots.animate().translationX(12 * d).setDuration(50).withEndAction(() -> dots.animate().translationX(-12 * d)
+                            .setDuration(80).withEndAction(() -> dots.animate().translationX(0).setDuration(60).start()).start()).start();
+                    handler.postDelayed(() -> {
+                        typed.setLength(0);
+                        showDots.run();
+                        busy[0] = false;
+                    }, 250);
+                });
+            }).start();
         };
 
         GridLayout keys = new GridLayout(activity);

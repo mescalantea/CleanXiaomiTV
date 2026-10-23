@@ -80,7 +80,9 @@ final class ChannelList {
      * The channels of the public lists, in their order; saves and returns them, or null when no list could be
      * fetched. Blocking: run off the main thread.
      */
-    static List<Channel> refresh(Context ctx) {
+    static synchronized List<Channel> refresh(Context ctx) {
+        // One fetch at a time (the app and its guide provider both ask); a caller that waited gets the saved list.
+        if (!refreshDue(ctx)) return load(ctx);
         List<Channel> fetched = new ArrayList<>();
         for (String src : ctx.getResources().getStringArray(R.array.sources)) {
             try {
@@ -91,8 +93,12 @@ final class ChannelList {
         }
         List<Channel> list = unique(fetched);
         if (list.isEmpty()) return null;
-        try (FileOutputStream out = new FileOutputStream(new File(ctx.getFilesDir(), SAVED))) {
+        // Written aside and renamed, so a reader never sees half a list.
+        File tmp = new File(ctx.getFilesDir(), SAVED + ".tmp");
+        try (FileOutputStream out = new FileOutputStream(tmp)) {
             out.write(write(list).getBytes(StandardCharsets.UTF_8));
+            out.close();
+            if (!tmp.renameTo(new File(ctx.getFilesDir(), SAVED))) Log.w(TAG, "could not save the list");
         } catch (Exception e) {
             Log.w(TAG, "save: " + e);
         }

@@ -386,6 +386,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 new Thread(() -> {
                     java.util.Map<String, YouTubeIdentity> found = YouTubeIdentity.load(getApplicationContext(), cfg.youtubeApiKey, channelIds);
                     handler.post(() -> {
+                        if (isDestroyed()) return;
                         identities = found;
                         showProfile(btnProfile, cfg.profile(currentProfile));
                     });
@@ -583,6 +584,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        handler.removeCallbacksAndMessages(null);
         shelf.stop();
         unregisterReceiver(packageReceiver);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
@@ -713,6 +715,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         for (Section s : sections) {
             boolean show = s.hasItems();
             if (show == s.shown()) continue;
+            if (!show && s == moving) endSectionMove();   // else Down would move the emptied section, not the focus
             if (!show && s.view.hasFocus()) moveVertical(s, 1);
             s.view.setVisibility(show ? View.VISIBLE : View.GONE);
         }

@@ -329,7 +329,8 @@ final class Config {
             if (text.startsWith("﻿")) text = text.substring(1);   // Windows editors add a BOM
             return new JSONObject(text);
         } catch (Exception e) {
-            Log.w(TAG, "ignoring " + file + ": " + e.getMessage());
+            // The class only: a JSON error message quotes the file, keys and all.
+            Log.w(TAG, "ignoring " + file.getName() + ": " + e.getClass().getSimpleName());
             return null;
         }
     }

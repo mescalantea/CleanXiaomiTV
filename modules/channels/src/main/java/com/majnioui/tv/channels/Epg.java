@@ -136,8 +136,15 @@ final class Epg {
         return -1;
     }
 
-    /** True when the saved guide is missing or was fetched on another day. */
+    private static final Object REFRESH = new Object();
+    private static final long RETRY_MS = 60 * 60 * 1000L;
+    private static long failedAt;
+
+    /** True when the saved guide is missing or was fetched on another day, and no fetch failed in the last hour. */
     static boolean refreshDue(Context ctx) {
+        synchronized (REFRESH) {
+            if (failedAt != 0 && android.os.SystemClock.elapsedRealtime() - failedAt < RETRY_MS) return false;
+        }
         File f = new File(ctx.getFilesDir(), SAVED);
         // The sports list is made while reading the guide: a guide saved by an older version has none yet.
         if (!f.isFile() || !Sports.saved(ctx)) return true;
@@ -148,8 +155,20 @@ final class Epg {
                 || saved.get(Calendar.DAY_OF_YEAR) != today.get(Calendar.DAY_OF_YEAR);
     }
 
-    /** Downloads and saves the guide for these channels; null on failure. Blocking. */
+    /**
+     * Downloads and saves the guide for these channels; null on failure. Blocking. One fetch at a time: a caller
+     * that waited for another's gets the guide it saved.
+     */
     static Map<String, List<Programme>> refresh(Context ctx, Set<String> ids) {
+        synchronized (REFRESH) {
+            if (!refreshDue(ctx)) return load(ctx);
+            Map<String, List<Programme>> guide = fetch(ctx, ids);
+            failedAt = guide == null ? android.os.SystemClock.elapsedRealtime() : 0;
+            return guide;
+        }
+    }
+
+    private static Map<String, List<Programme>> fetch(Context ctx, Set<String> ids) {
         long[] w = window(System.currentTimeMillis(), TimeZone.getDefault());
         try {
             HttpURLConnection c = (HttpURLConnection) new URL(URL).openConnection();
@@ -172,7 +191,7 @@ final class Epg {
             Sports.save(ctx, events);
             return guide;
         } catch (Exception e) {
-            Log.w(TAG, "guide: " + e);
+            Log.w(TAG, "guide: " + e.getClass().getSimpleName());
             return null;
         }
     }
