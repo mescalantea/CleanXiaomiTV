@@ -53,7 +53,6 @@ final class Config {
     final boolean dreamPhotos;
     final boolean nowPlaying;
     final boolean homePhoto;
-    final boolean moduleCards;
     final String vpnApp;
     /** Open-Meteo location for the weather line; an empty latitude hides it. */
     final String weatherLatitude;
@@ -71,7 +70,7 @@ final class Config {
                    String sourcePanelService, String sourcePanelAction, String inputAction,
                    int columns, int gridColumns, int rowsBelowDock, int dockOpacity,
                    boolean advancedEffects,
-                   boolean dreamAnalog, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, boolean moduleCards, String vpnApp,
+                   boolean dreamAnalog, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
@@ -90,7 +89,6 @@ final class Config {
         this.dreamPhotos = dreamPhotos;
         this.nowPlaying = nowPlaying;
         this.homePhoto = homePhoto;
-        this.moduleCards = moduleCards;
         this.vpnApp = vpnApp;
         this.weatherLatitude = weatherLatitude;
         this.weatherLongitude = weatherLongitude;
@@ -124,7 +122,6 @@ final class Config {
         boolean photos = res.getBoolean(R.bool.dream_photos);
         boolean playing = res.getBoolean(R.bool.now_playing);
         boolean homePhoto = res.getBoolean(R.bool.home_photo);
-        boolean moduleCards = res.getBoolean(R.bool.module_cards);
         String vpn = res.getString(R.string.vpn_app).trim();
         String weatherLat = res.getString(R.string.weather_latitude).trim();
         String weatherLon = res.getString(R.string.weather_longitude).trim();
@@ -155,7 +152,6 @@ final class Config {
             photos = bool(json, "dream_photos", photos);
             playing = bool(json, "now_playing", playing);
             homePhoto = bool(json, "home_photo", homePhoto);
-            moduleCards = bool(json, "module_cards", moduleCards);
             vpn = string(json, "vpn_app", vpn);
             weatherLat = string(json, "weather_latitude", weatherLat);
             weatherLon = string(json, "weather_longitude", weatherLon);
@@ -177,7 +173,7 @@ final class Config {
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), Math.max(0, Math.min(100, dockOpacity)),
-                advancedEffects, dreamAnalog, photos, playing, homePhoto, moduleCards, vpn,
+                advancedEffects, dreamAnalog, photos, playing, homePhoto, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings, background,
                 wallpaper, applied);
     }

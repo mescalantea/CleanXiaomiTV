@@ -13,16 +13,11 @@
     <!-- Weather on the home screen (Open-Meteo, see config.xml). -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Android 11+ package visibility: lets the launcher list the TV apps it shows as tiles, and the
-         apps that declare a module card (docs/specs/card.md). -->
+    <!-- Android 11+ package visibility: lets the launcher list the TV apps it shows as tiles. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
         </intent>
     </queries>
 

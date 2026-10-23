@@ -83,8 +83,4 @@
     <!-- "Default home" tile that opens Android's home-screen picker, for TVs whose settings have one
          (most Android TVs don't; the tile only appears when the page exists). Off by default. -->
     <bool name="show_home_settings_shortcut">false</bool>
-
-    <!-- Module cards: an app that declares a card (docs/specs/card.md) can stand in for its tile with its own
-         label, caption and glow colour, once you answer Show on the prompt. false: never look for cards or ask. -->
-    <bool name="module_cards">true</bool>
 </resources>

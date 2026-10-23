@@ -36,7 +36,6 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 | `dream_analog` | bool | An analog clock on the Clock screensaver instead of the digital one |
 | `dream_photos` | bool | Photos of the day (Bing) behind the Clock screensaver, a new one every 3 minutes |
 | `now_playing` | bool | The song a music app is playing: a pill on the home screen and a panel on the screensaver |
-| `module_cards` | bool | Look for module cards and ask about them (`true`); `false` turns the feature off |
 | `weather_latitude`, `weather_longitude`, `weather_place` | string | Weather line above the date (Open-Meteo); an empty latitude hides it |
 | `vpn_app` | string | App the network pill opens when a VPN is configured; also shows a red "VPN off" badge while no VPN is up |
 | `show_home_settings_shortcut` | bool | The "Default home" tile, where the TV has a home picker |

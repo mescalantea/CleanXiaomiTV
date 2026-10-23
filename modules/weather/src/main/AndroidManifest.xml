@@ -19,12 +19,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-            <!-- Module card for the CleanXiaomiTV / CleanYourTV launcher (docs/modules.md). -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
-            </intent-filter>
-            <meta-data android:name="com.gathin.tvhome.card" android:resource="@xml/module_card" />
         </activity>
     </application>
 </manifest>

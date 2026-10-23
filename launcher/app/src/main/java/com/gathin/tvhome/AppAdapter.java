@@ -40,7 +40,7 @@ import java.util.Set;
 
 /**
  * App tiles. The first {@link MainActivity#COLUMNS} positions are the pinned dock (favourites, fixed order),
- * then the module cards the owner chose to show (by label), followed by the saved user app order.
+ * followed by the saved user app order.
  */
 public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
 
@@ -58,7 +58,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     }
 
     static final class Entry {
-        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY_DOCK = 3;
+        static final int APP = 0, HOME_SETTINGS = 1, EMPTY_DOCK = 3;
 
         final int kind;
         final String label;
@@ -66,30 +66,26 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         final String pkg;
         final Drawable banner;
         final Drawable icon;
-        /** Text under the tile when it is focused in the grid: the label, plus the caption for a card. */
-        final String name;
-        /** Ambient glow colour; 0 until sampled from the banner, or the card's accent from the start. */
+        /** Ambient glow colour; 0 until sampled from the banner. */
         int ambient;
         /** Fill behind a square banner shown whole; 0 until sampled. */
         int squareFill;
 
         Entry(String label, ComponentName component, Drawable banner, Drawable icon) {
-            this(APP, label, component, banner, icon, null, 0);
+            this(APP, label, component, banner, icon);
         }
 
         Entry(Context ctx, int slot) {
-            this(EMPTY_DOCK, "", new ComponentName(ctx.getPackageName(), "EmptyDock" + slot), null, null, null, 0);
+            this(EMPTY_DOCK, "", new ComponentName(ctx.getPackageName(), "EmptyDock" + slot), null, null);
         }
 
-        Entry(int kind, String label, ComponentName component, Drawable banner, Drawable icon, String caption, int accent) {
+        Entry(int kind, String label, ComponentName component, Drawable banner, Drawable icon) {
             this.kind = kind;
             this.label = label;
             this.component = component;
             this.pkg = component.getPackageName();
             this.banner = banner;
             this.icon = icon;
-            this.name = caption == null ? label : label + " \u00B7 " + caption;
-            this.ambient = accent;
         }
     }
 
@@ -153,17 +149,11 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         setHasStableIds(true);
     }
 
-    /**
-     * Rebuilds the tiles. A shown module card stands in for every tile of its package (same component,
-     * so focus follows it); hidden_apps wins over a card, and a card's package in dock_apps takes that slot.
-     * A card the owner chose to hide takes its app off the grid too (a dock slot the owner pinned stays).
-     */
-    void reload(List<Cards.Card> cards, Set<String> hiddenCards) {
+    /** Rebuilds the tiles. */
+    void reload() {
         PackageManager pm = ctx.getPackageManager();
         Intent probe = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         List<ResolveInfo> found = pm.queryIntentActivities(probe, 0);
-        Map<String, Cards.Card> cardByPkg = new HashMap<>();
-        for (Cards.Card c : cards) cardByPkg.put(c.pkg, c);
         Map<String, ResolveInfo> byPackage = new HashMap<>();
         for (ResolveInfo ri : found) {
             if (ri.activityInfo == null) continue;
@@ -183,17 +173,11 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
                 continue;
             }
             ComponentName component = new ComponentName(pkg, ri.activityInfo.name);
-            Cards.Card card = cardByPkg.get(pkg);
-            if (card != null && !card.component.equals(component)) card = null;
             Drawable banner = loadBanner(pm, ri);
             // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
             // banner skips loading and decoding it.
             Drawable icon = banner == null ? ri.loadIcon(pm) : null;
-            if (card != null) {
-                fresh.add(new Entry(Entry.CARD, card.label, component, banner, icon, card.caption, card.accent));
-            } else {
-                fresh.add(new Entry(String.valueOf(ri.loadLabel(pm)), component, banner, icon));
-            }
+            fresh.add(new Entry(String.valueOf(ri.loadLabel(pm)), component, banner, icon));
         }
 
         // The remaining TV apps form the normal alphabetical grid. A user-pinned app wins over
@@ -201,25 +185,17 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         for (ResolveInfo ri : found) {
             if (ri.activityInfo == null) continue;
             String pkg = ri.activityInfo.packageName;
-            if (pkg.equals(ctx.getPackageName()) || hidden.contains(pkg) || favourites.contains(pkg)
-                    || hiddenCards.contains(pkg)) continue;
+            if (pkg.equals(ctx.getPackageName()) || hidden.contains(pkg) || favourites.contains(pkg)) continue;
             ComponentName component = new ComponentName(pkg, ri.activityInfo.name);
-            Cards.Card card = cardByPkg.get(pkg);
-            if (card != null && !card.component.equals(component)) continue;   // the card stands in for this tile
             Drawable banner = loadBanner(pm, ri);
             // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
             // banner skips loading and decoding it.
             Drawable icon = banner == null ? ri.loadIcon(pm) : null;
-            if (card != null) {
-                fresh.add(new Entry(Entry.CARD, card.label, component, banner, icon, card.caption, card.accent));
-            } else {
-                fresh.add(new Entry(String.valueOf(ri.loadLabel(pm)), component, banner, icon));
-            }
+            fresh.add(new Entry(String.valueOf(ri.loadLabel(pm)), component, banner, icon));
         }
         int dockCount = Math.min(dockSize, fresh.size());
         List<Entry> gridEntries = new ArrayList<>(fresh.subList(dockCount, fresh.size()));
         Collections.sort(gridEntries, (a, b) -> {
-            // Cards follow the owner's order like any app; a newly shown card was put first in it (decideCard).
             int oa = appOrder.indexOf(a.pkg), ob = appOrder.indexOf(b.pkg);
             if (oa >= 0 || ob >= 0) {
                 if (oa < 0) return 1;
@@ -235,7 +211,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
                 && pm.resolveActivity(new Intent(Settings.ACTION_HOME_SETTINGS), 0) != null) {
             fresh.add(new Entry(Entry.HOME_SETTINGS, ctx.getString(R.string.home_settings),
                     new ComponentName(ctx, HomeSettingsActivity.class), null,
-                    ctx.getDrawable(R.drawable.ic_home_settings), null, 0));
+                    ctx.getDrawable(R.drawable.ic_home_settings)));
         }
         items.clear();
         items.addAll(fresh);
@@ -306,7 +282,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         h.card.setVisibility(View.VISIBLE);
         h.card.setFocusable(true);
         h.card.setClickable(true);
-        h.name.setText(e.name);
+        h.name.setText(e.label);
         h.name.setVisibility(position < dockSize ? View.INVISIBLE : View.VISIBLE);   // the dock has no labels
         boolean focused = h.card.isFocused();   // a rebind after reload() can hit the focused tile
         h.name.setAlpha(focused ? 1f : 0f);
@@ -354,7 +330,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         });
     }
 
-    /** Opens the tile's activity by explicit component, with no extras: a card can name nothing else. */
+    /** Opens the tile's activity by explicit component, with no extras. */
     private void launch(Entry e) {
         if (e.kind == Entry.EMPTY_DOCK) return;
         if (e.kind == Entry.HOME_SETTINGS) {
@@ -408,15 +384,14 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         return position >= 0 && position < items.size() && items.get(position).kind != Entry.EMPTY_DOCK;
     }
 
-    /** True for a visible app in the fixed dock row (cards are valid dock entries too). */
+    /** True for a visible app in the fixed dock row. */
     boolean isDockPosition(int position) {
         return position >= 0 && position < dockSize && isFocusableAt(position);
     }
 
-    /** True for an installed application or a module card in the reorderable grid. */
+    /** True for an installed application in the reorderable grid. */
     boolean isReorderableAppAt(int position) {
-        return position >= dockSize && position < items.size()
-                && (items.get(position).kind == Entry.APP || items.get(position).kind == Entry.CARD);
+        return position >= dockSize && position < items.size() && items.get(position).kind == Entry.APP;
     }
 
     /** Package name for the visible tile at a position, or null for an empty/invalid slot. */
@@ -476,7 +451,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         return target;
     }
 
-    /** A vivid colour sampled from the app's banner (or icon), cached per entry; a card's accent when it set one. */
+    /** A vivid colour sampled from the app's banner (or icon), cached per entry. */
     int ambientColorAt(int position) {
         if (position < 0 || position >= items.size()) return 0xFF444444;
         Entry e = items.get(position);

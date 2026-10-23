@@ -26,7 +26,7 @@
 - **Home screen**: today's photo of the day behind everything, with liquid glass buttons, dock and menus over it; the weather next to the clock; a dock of four apps and five smaller tiles per row below it, out of sight until you press Down. Hold OK on a tile to move it. English and Arabic.
 - **Now playing**: while Spotify or another music app plays, a slim glass pill under the top buttons with the cover, song, artist and previous / play-pause / next, tinted in the cover's colour. Hold OK on it to open the app.
 - **Screensaver**: photos of the day with a slow zoom, the time and weather top left, and the song playing bottom left.
-- **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search) and **Channels** (35 live Moroccan and Arab channels from free streams the broadcasters publish). They show up on the home screen as cards.
+- **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search) and **Channels** (35 live Moroccan and Arab channels from free streams the broadcasters publish).
 
 ## Install
 

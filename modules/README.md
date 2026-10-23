@@ -1,7 +1,6 @@
 # Modules
 
-Two small Android TV apps that show up on the CleanXiaomiTV home screen as **module cards**
-(see [`docs/modules.md`](../docs/modules.md)). Weather is about 170 KB and Channels about 750 KB (it includes a video player).
+Two small Android TV apps that show up on the CleanXiaomiTV home screen as ordinary tiles. Weather is about 170 KB and Channels about 750 KB (it includes a video player).
 None of them runs in the background, and each uses the network only to fetch its own data.
 
 | | |
@@ -22,9 +21,6 @@ for m in weather channels; do
   TV_HOST=192.168.1.50 tools/venv/bin/python -I tools/tv.py "pm install -r /data/local/tmp/$m.apk; rm -f /data/local/tmp/$m.apk"
 done
 ```
-
-Press Home and the launcher asks once per app whether to show its card. Hold OK on Settings → Module cards to
-change your answer.
 
 The default city is Madrid: `latitude`, `longitude` and `place` in `weather/src/main/res/values/config.xml`.
 Weather starts there and remembers whatever you pick with Change city.
