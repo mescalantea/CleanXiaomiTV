@@ -36,4 +36,6 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'
     implementation 'androidx.media3:media3-exoplayer-dash:1.4.1'
     testImplementation 'junit:junit:4.13.2'
+    // An XmlPullParser for the guide tests; Android brings its own.
+    testImplementation 'net.sf.kxml:kxml2:2.3.0'
 }

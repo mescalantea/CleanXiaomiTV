@@ -81,7 +81,7 @@ This re-enables every package in the list, gives Home back to the stock Google T
 No analytics and no accounts. The only requests the TV makes for these features go to:
 [Open-Meteo](https://open-meteo.com) for the weather (only the city's coordinates), Bing's photo of the day
 archive for the home screen and the screensaver, your own Jellyfin server and YouTube's public channel feeds for the
-shelf (only when you set them up), [TDTChannels](https://www.tdtchannels.com)' public list and the broadcasters' own
+shelf (only when you set them up), [TDTChannels](https://www.tdtchannels.com)' public list and programme guide and the broadcasters' own
 streams for Channels, and AdGuard as the DNS resolver. Each can be
 switched off in `config.xml` (or by not installing that app).
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="guide_now">Ahora</string>
+    <string name="guide_next">Después</string>
+    <string name="guide_empty">Sin guía para este canal</string>
+    <string name="menu_hint">◀ ▶ grupos   ·   OK ver   ·   mantén OK guía   ·   Atrás cerrar</string>
+</resources>
