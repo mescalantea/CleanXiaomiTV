@@ -9,10 +9,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 
 /** "Continue watching" and "Next up" from a Jellyfin server, as shelf items. */
 final class Jellyfin {
@@ -23,21 +21,25 @@ final class Jellyfin {
     private Jellyfin() {
     }
 
+    /** "Continue watching". Blocks; call off the main thread. */
+    static List<ShelfItem> resume(String server, String apiKey, String userId, String episodeFormat) throws Exception {
+        String base = base(server);
+        return parse(get(base + "/Users/" + URLEncoder.encode(userId, "UTF-8") + "/Items/Resume?Limit=" + LIMIT
+                + "&MediaTypes=Video&Fields=PrimaryImageAspectRatio", apiKey), base, episodeFormat);
+    }
+
     /**
-     * Resume items first, then next-up episodes not already among them. Blocks; call off the main thread.
+     * "Next up" episodes. Blocks; call off the main thread.
      * @param episodeFormat season and episode numbers, e.g. "S%1$dE%2$d"
      */
-    static List<ShelfItem> fetch(String server, String apiKey, String userId, String episodeFormat) throws Exception {
-        String base = server.endsWith("/") ? server.substring(0, server.length() - 1) : server;
-        String user = URLEncoder.encode(userId, "UTF-8");
-        List<ShelfItem> items = parse(get(base + "/Users/" + user + "/Items/Resume?Limit=" + LIMIT
-                + "&MediaTypes=Video&Fields=PrimaryImageAspectRatio", apiKey), base, episodeFormat);
-        Set<String> seen = new HashSet<>();
-        for (ShelfItem i : items) seen.add(i.id);
-        for (ShelfItem i : parse(get(base + "/Shows/NextUp?userId=" + user + "&Limit=" + LIMIT, apiKey), base, episodeFormat)) {
-            if (seen.add(i.id)) items.add(i);
-        }
-        return items;
+    static List<ShelfItem> nextUp(String server, String apiKey, String userId, String episodeFormat) throws Exception {
+        String base = base(server);
+        return parse(get(base + "/Shows/NextUp?userId=" + URLEncoder.encode(userId, "UTF-8") + "&Limit=" + LIMIT, apiKey),
+                base, episodeFormat);
+    }
+
+    private static String base(String server) {
+        return server.endsWith("/") ? server.substring(0, server.length() - 1) : server;
     }
 
     /** The Authorization header for an API key; also sent with image requests. */

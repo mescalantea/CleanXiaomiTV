@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /** The latest videos of a few YouTube channels, from their public feeds (no account or key). */
 final class YouTubeFeed {
@@ -28,8 +29,9 @@ final class YouTubeFeed {
     /**
      * Newest first across the channels, at most max; a channel that fails or is too slow is skipped. Four
      * feeds at a time and a minute in all, since a list of subscriptions can hold a hundred channels. Blocks.
+     * @param progress gets the newest so far each time a feed brings videos, on a worker thread; may be null
      */
-    static List<ShelfItem> fetch(List<String> channels, int max) {
+    static List<ShelfItem> fetch(List<String> channels, int max, Consumer<List<ShelfItem>> progress) {
         List<ShelfItem> all = Collections.synchronizedList(new ArrayList<>());
         ExecutorService pool = Executors.newFixedThreadPool(4);
         for (String channel : channels) pool.execute(() -> {
@@ -41,7 +43,15 @@ final class YouTubeFeed {
                 try (InputStream in = c.getInputStream()) {
                     XmlPullParser p = Xml.newPullParser();
                     p.setInput(in, "UTF-8");
-                    all.addAll(parse(p));
+                    List<ShelfItem> videos = parse(p);
+                    if (!videos.isEmpty()) {
+                        List<ShelfItem> sofar;
+                        synchronized (all) {
+                            all.addAll(videos);
+                            sofar = newest(all, max);
+                        }
+                        if (progress != null) progress.accept(sofar);
+                    }
                 } finally {
                     c.disconnect();
                 }

@@ -15,6 +15,12 @@
         android:focusable="true"
         android:clickable="true">
 
+        <View
+            android:id="@+id/shelfSkeleton"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/shelf_skeleton" />
+
         <ImageView
             android:id="@+id/shelfImage"
             android:layout_width="match_parent"
@@ -23,6 +29,7 @@
             android:contentDescription="@null" />
 
         <View
+            android:id="@+id/shelfScrim"
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:layout_gravity="bottom"
