@@ -217,7 +217,7 @@ public class MainActivity extends Activity {
     private void buildMenu() {
         menu = new LinearLayout(this);
         menu.setOrientation(LinearLayout.VERTICAL);
-        menu.setPadding(dp(28), dp(36), dp(20), dp(24));
+        menu.setPadding(dp(24), dp(36), dp(24), dp(24));
         // Opaque: on this TV the video plane shows through a 95% dark panel strongly enough to blur the text.
         menu.setBackgroundColor(0xFF0B0D10);
         menu.setVisibility(View.GONE);
@@ -295,8 +295,9 @@ public class MainActivity extends Activity {
         if (channels.isEmpty()) return;
         menu.setVisibility(View.VISIBLE);
         menu.setAlpha(0f);
-        menu.setTranslationX(-dp(40));
-        menu.animate().alpha(1f).translationX(0f).setDuration(180).start();
+        // A fade, not a slide: the video's surface cuts its hole around where the panel is when it is laid out, and a
+        // panel still sliding in left its right edge under the video. The hole is worked out again once it shows.
+        menu.animate().alpha(1f).setDuration(180).withEndAction(() -> root.requestTransparentRegion(surface)).start();
         main.removeCallbacks(hideBar);
         bar.setAlpha(0f);
         adapter.notifyDataSetChanged();
@@ -307,7 +308,7 @@ public class MainActivity extends Activity {
 
     private void closeMenu() {
         closeGuide();
-        menu.animate().alpha(0f).translationX(-dp(40)).setDuration(150)
+        menu.animate().alpha(0f).setDuration(150)
                 .withEndAction(() -> menu.setVisibility(View.GONE)).start();
     }
 
