@@ -114,6 +114,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean homePressed;
     /** The section being moved (hold OK on one of its cards), or null. */
     private Section moving;
+    private String configStamp = "";
     private View orderPanel;
     private final java.util.Map<Section, View> orderRows = new java.util.HashMap<>();
     private View hero, heroImage, heroScrim;
@@ -221,6 +222,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
+        configStamp = Config.stamp(this);
         Config cfg = Config.load(this);
         GRID_COLUMNS = cfg.gridColumns;
         liveTvPkg = cfg.liveTvPackage;
@@ -447,6 +449,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (reloadIfConfigChanged()) return;
         // Home pressed (on Home or in another app): back to the first card of the first section, everything at its
         // start. Coming back with Back keeps the card the user left from.
         if (!Intent.ACTION_MAIN.equals(intent.getAction())) return;
@@ -469,6 +472,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onResume() {
         super.onResume();
+        if (reloadIfConfigChanged()) return;
         switch (tileRefresh.onResume(packagesChangedSinceRebuild())) {
             case REBUILD:
                 reloadApps(true);
@@ -579,6 +583,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onStop() {
         super.onStop();
         tileRefresh.onStop();
+    }
+
+    /**
+     * A theme or private.json pushed while Home was running: start again with it. The tools bring Home to the
+     * front instead of force-stopping it, which would also switch off the remote's key service.
+     */
+    private boolean reloadIfConfigChanged() {
+        if (configStamp.equals(Config.stamp(this))) return false;
+        configStamp = Config.stamp(this);
+        recreate();
+        return true;
     }
 
     @Override
@@ -977,7 +992,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             hero.animate().alpha(0f).setDuration(200).start();
             heroImage.animate().alpha(0f).setDuration(400).start();
             heroScrim.animate().alpha(0f).setDuration(400).start();
-            findViewById(R.id.photoCaption).animate().alpha(1f).setDuration(400).start();
+            findViewById(R.id.photoCaption).animate().alpha(captionFree() ? 1f : 0f).setDuration(400).start();
             return;
         }
         heroTitle.setText(heroTitle(item));
@@ -1006,6 +1021,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroImage.animate().alpha(1f).setDuration(500).start();
         });
     };
+
+    /** The photo's credit line, bottom right, shows when no card's picture covers the photo and no app tile sits on it. */
+    private boolean captionFree() {
+        Section in = sectionOf(getCurrentFocus());
+        return heroItem == null && (in == null || in.row >= 0);
+    }
 
     private String heroTitle(ShelfItem item) {
         // A live channel's card is named after the channel; the hero names what is on.
@@ -1386,7 +1407,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 photo.animate().alpha(1f).setDuration(900).withEndAction(this::dropHiddenLayers).start();
                 TextView caption = findViewById(R.id.photoCaption);
                 caption.setText(p.credit.isEmpty() ? p.title : p.title + "  ·  " + p.credit);
-                if (heroItem == null) caption.animate().alpha(1f).setDuration(900).start();
+                if (captionFree()) caption.animate().alpha(1f).setDuration(900).start();
             });
         }).start();
     }

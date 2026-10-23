@@ -144,6 +144,18 @@ final class Config {
         return ctx.getExternalFilesDir(null);
     }
 
+    /** Changes whenever a pushed file (config.json, private.json, the wallpaper) is added, changed or removed. */
+    static String stamp(Context ctx) {
+        File dir = dir(ctx);
+        if (dir == null) return "";
+        StringBuilder s = new StringBuilder();
+        for (String name : new String[] {FILE_NAME, PRIVATE_NAME, WALLPAPER_NAME}) {
+            File f = new File(dir, name);
+            s.append(f.isFile() ? f.length() + "@" + f.lastModified() : "-").append(';');
+        }
+        return s.toString();
+    }
+
     static Config load(Context ctx) {
         Resources res = ctx.getResources();
         List<String> dock = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.dock_apps)));

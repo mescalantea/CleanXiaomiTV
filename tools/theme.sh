@@ -27,11 +27,11 @@ if [ "${PRIVATE:-0}" = 1 ]; then
     || { echo "$THEME_ARG is not valid JSON" >&2; exit 1; }
   tv "mkdir -p $DIR" >/dev/null
   tv --push "$THEME_ARG" "$DIR/private.json"
-  tv "am force-stop $PKG; am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo applied" | tail -n 1
+  tv "am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo applied" | tail -n 1
   exit 0
 fi
 if [ "${1:-}" = --reset ]; then
-  tv "rm -f $DIR/config.json $DIR/wallpaper.jpg; am force-stop $PKG; am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo reset" | tail -n 1
+  tv "rm -f $DIR/config.json $DIR/wallpaper.jpg; am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo reset" | tail -n 1
   exit 0
 fi
 THEME="${THEME_ARG:?usage: theme.sh <theme folder> | --reset}"
@@ -46,5 +46,5 @@ if [ -f "$THEME/wallpaper.jpg" ]; then
 else
   tv "rm -f $DIR/wallpaper.jpg" >/dev/null
 fi
-tv "am force-stop $PKG; am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo applied" | tail -n 1
+tv "am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo applied" | tail -n 1
 echo "Theme $(basename "$THEME") is on the TV. Undo with: tools/theme.sh --reset"
