@@ -14,13 +14,17 @@ public class ConfigTest {
 
     private static final String PRIVATE = "{\"profiles\":["
             + "{\"name\":\"Alex\",\"jellyfin_user_id\":\"u1\",\"youtube_channel_id\":\"UCalex\",\"youtube_channels\":[\"UCa\",\"UCshared\"]},"
-            + "{\"name\":\"Sam\"},"
+            + "{\"name\":\"Sam\",\"photo\":\"https://example.com/sam.jpg\"},"
+            + "{\"name\":\"Kim\",\"photo\":\"http://example.com/kim.jpg\"},"
             + "{\"jellyfin_user_id\":\"no name\"}, 3]}";
 
     @Test
     public void readsNamedProfiles() throws Exception {
         List<Config.Profile> p = Config.profiles(new JSONObject(PRIVATE));
-        assertEquals(2, p.size());
+        assertEquals(3, p.size());
+        assertEquals("https://example.com/sam.jpg", p.get(1).photo);
+        assertEquals("", p.get(2).photo);
+        assertEquals("", p.get(0).photo);
         assertEquals("Alex", p.get(0).name);
         assertEquals("u1", p.get(0).jellyfinUserId);
         assertEquals("UCalex", p.get(0).youtubeChannelId);

@@ -47,5 +47,4 @@
     <string name="dock_edit_place_hint">تعديل الشريط  •  اختر مكانًا ثم OK  •  رجوع للخروج</string>
     <string name="dock_edit_app_hint">تعديل الشريط  •  اختر التطبيق لهذا المكان ثم OK  •  رجوع</string>
     <string name="apps_per_row">التطبيقات في كل صف</string>
-    <string name="advanced_effects">مؤثرات متقدمة</string>
 </resources>

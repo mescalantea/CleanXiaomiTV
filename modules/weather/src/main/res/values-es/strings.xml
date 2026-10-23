@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">El tiempo</string>
+    <string name="weather_refresh">Actualizar</string>
+    <string name="weather_change_city">Cambiar ciudad</string>
+    <string name="weather_refreshing">Actualizando…</string>
+    <string name="weather_loading">Cargando…</string>
+    <string name="weather_offline">No se puede conectar con Open-Meteo. Se muestra el último dato, si lo hay.</string>
+    <string name="weather_bad_answer">Respuesta inesperada de Open-Meteo.</string>
+    <string name="weather_details">Sensación %1$d°  ·  Humedad %2$d%%  ·  Viento %3$d km/h</string>
+    <string name="weather_today">Hoy</string>
+    <string name="weather_updated">Open-Meteo · actualizado a las %1$s</string>
+    <string name="weather_search_hint">Escribe el nombre de una ciudad y pulsa Buscar en el teclado.</string>
+    <string name="weather_searching">Buscando…</string>
+    <string name="weather_search_offline">No se puede buscar la ciudad. Comprueba la conexión e inténtalo de nuevo.</string>
+    <string name="weather_no_city">No se encontró la ciudad. Prueba a escribirla de otra forma.</string>
+    <string name="weather_choose">Elige una:</string>
+    <string name="w_clear">Despejado</string>
+    <string name="w_mostly_clear">Casi despejado</string>
+    <string name="w_partly_cloudy">Parcialmente nuboso</string>
+    <string name="w_overcast">Cubierto</string>
+    <string name="w_fog">Niebla</string>
+    <string name="w_drizzle">Llovizna</string>
+    <string name="w_rain">Lluvia</string>
+    <string name="w_snow">Nieve</string>
+    <string name="w_showers">Chubascos</string>
+    <string name="w_snow_showers">Chubascos de nieve</string>
+    <string name="w_thunderstorm">Tormenta</string>
+</resources>

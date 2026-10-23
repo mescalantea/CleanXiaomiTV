@@ -31,8 +31,6 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 | `columns` | 1 to 8 | Dock slots; tiles shrink to fit from 5 up |
 | `grid_columns` | 1 to 8 | Tiles per grid row below the dock; same as `columns` if left out |
 | `rows_below_dock` | 0 to 3 | Grid rows left visible under the dock |
-| `dock_opacity` | 0 to 100 | How opaque the dock band's glass is over the photo or wallpaper: 100 is the solid frosted band, lower shows more of the picture (55 by default) |
-| `advanced_effects` | bool | The focused tile lifts with a shadow, zooms a little more, its picture zooms and it gets a bright edge; the top buttons zoom on focus and apps open with a soft transition (`false` by default) |
 | `dream_analog` | bool | An analog clock on the Clock screensaver instead of the digital one |
 | `dream_photos` | bool | Photos of the day (Bing) behind the Clock screensaver, a new one every 3 minutes |
 | `now_playing` | bool | The song a music app is playing: a pill on the home screen and a panel on the screensaver |
@@ -51,7 +49,7 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 | `jellyfin_url`, `jellyfin_api_key`, `jellyfin_user_id` | string | Jellyfin server (https), an API key made in its dashboard, and your user id; all three are needed for Jellyfin on the shelf |
 | `youtube_channels` | list of channel ids | Channels whose latest videos go on the shelf |
 | `youtube_api_key`, `youtube_channel_id` | string | A YouTube Data API key (Google Cloud console, YouTube Data API v3) and your own channel id (YouTube → Settings → Advanced settings). The shelf then also shows the latest videos of the channels you subscribe to, read once a day; your subscriptions must be public (YouTube → Settings → Privacy) |
-| `profiles` | list of objects | One per person: `name`, and optionally their own `jellyfin_user_id`, `youtube_channel_id` and `youtube_channels`. With two or more, a button with the name shows next to Settings on Home, and OK on it switches the shelf to the next person. A profile's Jellyfin user replaces the flat one; its YouTube channels are added to the flat ones |
+| `profiles` | list of objects | One per person: `name`, and optionally their own `jellyfin_user_id`, `youtube_channel_id`, `youtube_channels` and `photo` (an https picture URL). With two or more, a round button left of the top buttons shows the current person's `photo`, else their Jellyfin avatar, else their initial; OK on it switches the shelf to the next person and shows their name. A profile's Jellyfin user and YouTube channel id replace the flat ones; its YouTube channels are added to the flat ones |
 | `weather_latitude`, `weather_longitude`, `weather_place` | string | Your weather location, over `config.xml` and the theme |
 
 See [`private.example/private.json`](private.example/private.json).

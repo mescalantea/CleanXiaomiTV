@@ -18,7 +18,7 @@ import android.widget.TextView;
 /**
  * The now playing pill under the top buttons: the cover as a circle
  * in the pill's round end, the song with moving bars, the artist, and previous / play-pause / next. The
- * glass takes on the cover's colour, strongest behind it and fading towards the buttons, so cover and pill
+ * pill takes on the cover's colour, strongest behind it and fading towards the buttons, so cover and pill
  * read as one. OK on a button does that; holding OK
  * opens the music app. Up leaves for the top buttons, Down for the dock (see MainActivity).
  */
@@ -34,7 +34,7 @@ final class NowPlayingCard extends LinearLayout {
 
     private final float density;
     private final ImageView art;
-    /** The cover's colour across the glass; transparent without a cover. */
+    /** The cover's colour across the pill; transparent without a cover. */
     private final GradientDrawable tint;
     private final TextView title, artist;
     private final ImageView prev, toggle, next;
@@ -44,7 +44,7 @@ final class NowPlayingCard extends LinearLayout {
     private String artKey;
     private boolean artIsCover;
 
-    NowPlayingCard(Context ctx, Backdrop backdrop, Typeface font, Exits exits) {
+    NowPlayingCard(Context ctx, Typeface font, Exits exits) {
         super(ctx);
         density = ctx.getResources().getDisplayMetrics().density;
         setOrientation(HORIZONTAL);
@@ -53,8 +53,10 @@ final class NowPlayingCard extends LinearLayout {
         setPadding(dp(ART_INSET), 0, dp(4), 0);
         tint = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[] {0, 0});
         tint.setCornerRadius(dp(HEIGHT / 2));
-        setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {
-                new GlassDrawable(this, backdrop, dp(HEIGHT / 2), density), tint}));
+        GradientDrawable base = new GradientDrawable();
+        base.setColor(ctx.getColor(R.color.pill));
+        base.setCornerRadius(dp(HEIGHT / 2));
+        setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {base, tint}));
         setVisibility(GONE);
         setAlpha(0f);
 
@@ -170,7 +172,7 @@ final class NowPlayingCard extends LinearLayout {
     }
 
     /**
-     * A colour for the glass from the cover: its average, made a little more vivid and kept mid-bright,
+     * A colour for the pill from the cover: its average, made a little more vivid and kept mid-bright,
      * so a dark or washed-out cover still gives a visible tint and a bright one doesn't glare.
      */
     private static int coverColor(android.graphics.Bitmap art) {
@@ -197,7 +199,7 @@ final class NowPlayingCard extends LinearLayout {
         on.setColor(0xF5FFFFFF);
         StateListDrawable bg = new StateListDrawable();
         bg.addState(new int[] {android.R.attr.state_focused}, on);
-        bg.addState(new int[] {}, new ColorDrawable(0x00000000));   // unfocused: the icon on the pill's glass
+        bg.addState(new int[] {}, new ColorDrawable(0x00000000));   // unfocused: the icon on the pill
         b.setBackground(bg);
         b.setImageTintList(new ColorStateList(new int[][] {{android.R.attr.state_focused}, {}},
                 new int[] {0xFF111111, 0xFFFFFFFF}));

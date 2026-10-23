@@ -4,4 +4,9 @@
     <string name="guide_next">Next</string>
     <string name="guide_empty">No guide for this channel</string>
     <string name="menu_hint">◀ ▶ groups   ·   OK watch   ·   hold OK guide   ·   Back close</string>
+    <string name="app_name">Channels</string>
+    <string name="channels_title">CHANNELS</string>
+    <string name="channels_count">%1$d channels</string>
+    <string name="loading">Loading…</string>
+    <string name="unavailable">%1$s isn\'t available right now.\nUp / Down for another channel, OK for the list.</string>
 </resources>

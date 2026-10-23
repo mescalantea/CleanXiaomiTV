@@ -2,7 +2,7 @@
 
 <p align="center">My Xiaomi TV, minus the ads: a clean home screen, a richer screensaver and live channels.</p>
 
-![The home screen: today's photo, the clock and weather, the song playing under the glass buttons, and the dock](docs/screenshot-home.png)
+![The home screen: today's photo, the clock and weather, the song playing under the top buttons, and the dock](docs/screenshot-home.png)
 
 <table>
   <tr>
@@ -23,9 +23,9 @@
 
 - **Debloat**: [`debloat.txt`](debloat.txt) disables 38 packages: Xiaomi and Google telemetry, PatchWall and the ad rows, demo mode, duplicate cast services, preloaded apps and unused system leftovers. Nothing is uninstalled, and one command restores everything.
 - **Ad-blocking DNS**: the installer points the TV's Private DNS at [AdGuard](https://adguard-dns.io), so ads and trackers are blocked in every app.
-- **Home screen**: today's photo of the day behind everything, with liquid glass buttons, dock and menus over it; the weather next to the clock; a dock of four apps and five smaller tiles per row below it, out of sight until you press Down. Hold OK on a tile to move it. English and Arabic.
+- **Home screen**: today's photo of the day behind everything, with flat top buttons and menus over it and a focused tile that zooms a little with a white outline, as on Google TV; the weather next to the clock; a dock of four apps and five smaller tiles per row below it, out of sight until you press Down. Hold OK on a tile to move it. English and Arabic.
 - **For you**: a row above the dock with what you are watching and the next episodes on your Jellyfin server, then the latest videos of the YouTube channels you pick; OK opens them in the Jellyfin and YouTube apps. It only shows once you set it up (see [Your own values](#your-own-values)).
-- **Now playing**: while Spotify or another music app plays, a slim glass pill under the top buttons with the cover, song, artist and previous / play-pause / next, tinted in the cover's colour. Hold OK on it to open the app.
+- **Now playing**: while Spotify or another music app plays, a slim pill under the top buttons with the cover, song, artist and previous / play-pause / next, tinted in the cover's colour. Hold OK on it to open the app.
 - **Screensaver**: photos of the day with a slow zoom, the time and weather top left, and the song playing bottom left.
 - **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search) and **Channels** (Spanish and international live channels from [TDTChannels](https://www.tdtchannels.com)' public list of free streams).
 
@@ -52,7 +52,7 @@ done
 tools/venv/bin/python -I tools/tv.py 'settings put secure screensaver_components com.majnioui.cleanxiaomitv/com.gathin.tvhome.ClockDream; settings put secure screensaver_enabled 1'
 ```
 
-`INPUT_KEY_SERVICE=1` keeps the remote's Input button working once the stock home is gone, and on Xiaomi remotes the YouTube and Apps buttons too; Android switches it off on every reinstall, so pass it each time. `PRIVATE_DNS=off` skips the AdGuard DNS.
+`INPUT_KEY_SERVICE=1` keeps the remote's Input button working once the stock home is gone, and on Xiaomi remotes the YouTube and Apps buttons too; Android switches it off on every reinstall, so pass it each time. `PRIVATE_DNS=off` skips the AdGuard DNS. The script also turns Location on, which Android needs before it tells the launcher the Wi-Fi network's name (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)).
 
 ## Configure
 
@@ -66,7 +66,7 @@ The Jellyfin server, its API key and your user id, the YouTube channels for the 
 TV_HOST=<tv-ip> tools/theme.sh --private themes/private/private.json
 ```
 
-Run it once per TV, with that TV's IP. If more than one person uses the TV, list them under `profiles`: Home then gets a button with the current name, and OK on it switches the shelf to the next person's Jellyfin items and channels. With a `youtube_api_key` and a person's `youtube_channel_id`, the shelf also follows the channels that person subscribes to, as long as their subscriptions are public (see [`themes/README.md`](themes/README.md#private-values)). `tools/theme.sh --reset` leaves `private.json` in place.
+Run it once per TV, with that TV's IP. If more than one person uses the TV, list them under `profiles`: Home then gets a round button with the current person's picture (their Jellyfin avatar, an optional `photo` URL, or their initial), and OK on it switches the shelf to the next person's Jellyfin items and channels. With a `youtube_api_key` and a person's `youtube_channel_id`, the shelf also follows the channels that person subscribes to, as long as their subscriptions are public (see [`themes/README.md`](themes/README.md#private-values)). `tools/theme.sh --reset` leaves `private.json` in place.
 
 ## Undo
 

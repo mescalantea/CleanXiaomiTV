@@ -207,6 +207,21 @@
                 android:layout_marginBottom="6dp"
                 android:orientation="horizontal">
 
+                <!-- Whose items the shelf shows, as their picture or initial; only with two or more profiles in
+                     private.json. -->
+                <ImageView
+                    android:id="@+id/btnProfile"
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:layout_marginStart="10dp"
+                    android:padding="3dp"
+                    android:background="@drawable/profile_ring"
+                    android:focusable="true"
+                    android:clickable="true"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone"
+                    android:nextFocusDown="@+id/grid" />
+
                 <!-- Wi-Fi keeps its label (the network name); Inputs and Settings are round icon buttons. -->
                 <TextView
                     android:id="@+id/btnWifi"
@@ -223,17 +238,6 @@
                     style="@style/TopIconButton"
                     android:contentDescription="@string/inputs"
                     android:drawableStart="@drawable/ic_input"
-                    android:nextFocusDown="@+id/grid" />
-
-                <!-- Whose items the shelf shows; only with two or more profiles in private.json. -->
-                <TextView
-                    android:id="@+id/btnProfile"
-                    style="@style/TopButton"
-                    android:maxWidth="160dp"
-                    android:singleLine="true"
-                    android:ellipsize="end"
-                    android:contentDescription="@string/profile"
-                    android:visibility="gone"
                     android:nextFocusDown="@+id/grid" />
 
                 <TextView
@@ -256,7 +260,7 @@
         </RelativeLayout>
 
         <!-- The wrapper clips at the grid's edge; the grid itself must not clip so scaled tiles can overflow their cells.
-             The side padding is room for the dock band (DockDecoration.PAD_X) inside that clip. -->
+             The side padding is room for a zoomed end tile inside that clip. -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -279,16 +283,8 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- The single floating glass highlight that springs between tiles. -->
-    <com.gathin.tvhome.GlassView
-        android:id="@+id/glass"
-        android:layout_width="10dp"
-        android:layout_height="10dp"
-        android:alpha="0"
-        android:importantForAccessibility="no" />
-
     <!-- Where today's photo was taken and who took it: one faint, very small line in the strip under the
-         dock band, at its right end. Shown with the dock only (showHero / hideHero): grid rows scroll there. -->
+         dock, at its right end. Shown with the dock only (showHero / hideHero): grid rows scroll there. -->
     <TextView
         android:id="@+id/photoCaption"
         android:layout_width="wrap_content"

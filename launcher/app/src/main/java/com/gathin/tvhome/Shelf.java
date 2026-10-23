@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /**
  * The "For you" row above the dock: Jellyfin's continue watching and next up, then the latest videos of
@@ -317,6 +318,30 @@ final class Shelf {
             } catch (ActivityNotFoundException | SecurityException ignored) {
             }
         }
+    }
+
+    /**
+     * The profile's picture for the profile button: its photo URL, else its Jellyfin user's avatar (a server
+     * without one answers 404). Calls back on the main thread, only when there is a picture.
+     */
+    void avatar(Config.Profile profile, int size, Consumer<Bitmap> done) {
+        boolean jellyfin = !jellyfinUrl.isEmpty() && !jellyfinKey.isEmpty() && !profile.jellyfinUserId.isEmpty();
+        if (profile.photo.isEmpty() && !jellyfin) return;
+        final String url = !profile.photo.isEmpty() ? profile.photo
+                : jellyfinUrl.replaceAll("/+$", "") + "/Users/" + Uri.encode(profile.jellyfinUserId) + "/Images/Primary?maxHeight=" + size;
+        final String key = profile.photo.isEmpty() ? jellyfinKey : null;
+        Bitmap cached = posters.get(url);
+        if (cached != null) {
+            done.accept(cached);
+            return;
+        }
+        io.execute(() -> {
+            Bitmap bmp = download(url, key, size);
+            if (bmp != null) handler.post(() -> {
+                posters.put(url, bmp);
+                done.accept(bmp);
+            });
+        });
     }
 
     private void loadPoster(ShelfItem item, ImageView view, View skeleton) {

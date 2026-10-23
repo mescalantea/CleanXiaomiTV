@@ -81,6 +81,10 @@ Things that bit us or contributors, so they don't bite you. Commands use `tools/
   or a reinstall from scratch: clearing the launcher's data also drops the location permission
   Android 10 needs to read the SSID. `pm grant com.majnioui.cleanxiaomitv android.permission.ACCESS_FINE_LOCATION`
   (the install script does this).
+- **The network pill says "Wi-Fi" although the permission is granted**: Android only hands out the network
+  name while Location is on, and Xiaomi TVs ship with it off (`settings get secure location_mode` prints 0).
+  The install script turns it on with `settings put secure location_mode 3`; nothing on the TV uses it
+  otherwise. Without it, the pill keeps saying "Wi-Fi".
 - **Home is "Select a Home app"** after `tools/restore.sh` followed by re-applying a list: disabling a
   package that also claims HOME (PatchWall on Xiaomi) makes Android drop the default. The install
   script now picks the known stock launcher among the candidates by itself; otherwise choose one on

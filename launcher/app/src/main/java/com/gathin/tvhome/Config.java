@@ -27,7 +27,7 @@ import java.util.List;
  * {@code private.json} in the same folder is read after it, for the owner's own values that never go in the
  * repo: the Jellyfin server and key, the YouTube channels and the weather location.
  *
- * The few switches in the Settings menu (the analog clock, apps per row, advanced effects) are saved on the TV and win over both.
+ * The few switches in the Settings menu (the analog clock, apps per row) are saved on the TV and win over both.
  *
  * Read once in {@link MainActivity#onCreate}; nothing here touches the network.
  */
@@ -47,10 +47,6 @@ final class Config {
     final int columns;
     final int gridColumns;
     final int rowsBelowDock;
-    /** How opaque the dock band's glass is, 0 to 100 (config.xml, dock_opacity); lower shows more of the photo. */
-    final int dockOpacity;
-    /** The focused tile lifts, zooms and gets a bright edge, and apps open with a soft transition (advanced_effects). */
-    final boolean advancedEffects;
     /** An analog clock on the screensaver instead of the digital one. */
     final boolean dreamAnalog;
     final boolean dreamPhotos;
@@ -81,9 +77,16 @@ final class Config {
         final String jellyfinUserId;
         final String youtubeChannelId;
         final List<String> youtubeChannels;
+        /** Picture for the profile button (https), or empty for the Jellyfin user's avatar. */
+        final String photo;
 
         Profile(String name, String jellyfinUserId, String youtubeChannelId, List<String> youtubeChannels) {
+            this(name, jellyfinUserId, youtubeChannelId, youtubeChannels, "");
+        }
+
+        Profile(String name, String jellyfinUserId, String youtubeChannelId, List<String> youtubeChannels, String photo) {
             this.name = name;
+            this.photo = photo;
             this.jellyfinUserId = jellyfinUserId;
             this.youtubeChannelId = youtubeChannelId;
             this.youtubeChannels = Collections.unmodifiableList(youtubeChannels);
@@ -98,8 +101,7 @@ final class Config {
 
     private Config(List<String> dockApps, List<String> hiddenApps, String liveTvPackage, String liveTvAction,
                    String sourcePanelService, String sourcePanelAction, String inputAction,
-                   int columns, int gridColumns, int rowsBelowDock, int dockOpacity,
-                   boolean advancedEffects,
+                   int columns, int gridColumns, int rowsBelowDock,
                    boolean dreamAnalog, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut,
                    String jellyfinUrl, String jellyfinApiKey, String jellyfinUserId, List<String> youtubeChannels, String youtubeApiKey, String youtubeChannelId, List<Profile> profiles, int backgroundColor,
@@ -114,8 +116,6 @@ final class Config {
         this.columns = columns;
         this.gridColumns = gridColumns;
         this.rowsBelowDock = rowsBelowDock;
-        this.dockOpacity = dockOpacity;
-        this.advancedEffects = advancedEffects;
         this.dreamAnalog = dreamAnalog;
         this.dreamPhotos = dreamPhotos;
         this.nowPlaying = nowPlaying;
@@ -154,8 +154,6 @@ final class Config {
         int columns = res.getInteger(R.integer.columns);
         int gridColumns = res.getInteger(R.integer.grid_columns);
         int rowsBelow = res.getInteger(R.integer.rows_below_dock);
-        int dockOpacity = res.getInteger(R.integer.dock_opacity);
-        boolean advancedEffects = res.getBoolean(R.bool.advanced_effects);
         boolean dreamAnalog = res.getBoolean(R.bool.dream_analog);
         boolean photos = res.getBoolean(R.bool.dream_photos);
         boolean playing = res.getBoolean(R.bool.now_playing);
@@ -184,8 +182,6 @@ final class Config {
             // A theme that sets only columns gets an even grid, as before grid_columns existed.
             gridColumns = integer(json, "grid_columns", json.has("columns") ? columns : gridColumns, 1, 8);
             rowsBelow = integer(json, "rows_below_dock", rowsBelow, 0, 3);
-            dockOpacity = integer(json, "dock_opacity", dockOpacity, 0, 100);
-            advancedEffects = bool(json, "advanced_effects", advancedEffects);
             dreamAnalog = bool(json, "dream_analog", dreamAnalog);
             photos = bool(json, "dream_photos", photos);
             playing = bool(json, "now_playing", playing);
@@ -218,7 +214,6 @@ final class Config {
         dreamAnalog = toggles.getBoolean(DREAM_ANALOG, dreamAnalog);
         int chosenColumns = toggles.getInt(GRID_COLUMNS, 0);
         if (chosenColumns >= 4 && chosenColumns <= 7) gridColumns = chosenColumns;
-        advancedEffects = toggles.getBoolean(ADVANCED_EFFECTS, advancedEffects);
 
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
         if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
@@ -226,8 +221,8 @@ final class Config {
         if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpaper = null;
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
-                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), Math.max(0, Math.min(100, dockOpacity)),
-                advancedEffects, dreamAnalog, photos, playing, homePhoto, vpn,
+                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow),
+                dreamAnalog, photos, playing, homePhoto, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings,
                 jellyfinUrl, jellyfinKey, jellyfinUser, youtube, youtubeKey, youtubeId, profiles, background,
                 wallpaper, applied);
@@ -250,10 +245,13 @@ final class Config {
         List<String> channels = new ArrayList<>(flat.youtubeChannels);
         for (String c : chosen.youtubeChannels) if (!channels.contains(c)) channels.add(c);
         return new Profile(chosen.name, chosen.jellyfinUserId.isEmpty() ? flat.jellyfinUserId : chosen.jellyfinUserId,
-                chosen.youtubeChannelId.isEmpty() ? flat.youtubeChannelId : chosen.youtubeChannelId, channels);
+                chosen.youtubeChannelId.isEmpty() ? flat.youtubeChannelId : chosen.youtubeChannelId, channels, chosen.photo);
     }
 
-    /** "profiles": [{"name": ..., "jellyfin_user_id": ..., "youtube_channel_id": ..., "youtube_channels": [...]}]; entries without a name are skipped. */
+    /**
+     * "profiles": [{"name": ..., "jellyfin_user_id": ..., "youtube_channel_id": ..., "youtube_channels": [...], "photo": "https://..."}];
+     * entries without a name are skipped, and so is a photo that isn't https.
+     */
     static List<Profile> profiles(JSONObject o) {
         List<Profile> out = new ArrayList<>();
         JSONArray a = o.optJSONArray("profiles");
@@ -263,8 +261,9 @@ final class Config {
             if (p == null) continue;
             String name = string(p, "name", "");
             if (name.isEmpty()) continue;
+            String photo = string(p, "photo", "");
             out.add(new Profile(name, string(p, "jellyfin_user_id", ""), string(p, "youtube_channel_id", ""),
-                    stringList(p, "youtube_channels", new ArrayList<>())));
+                    stringList(p, "youtube_channels", new ArrayList<>()), photo.startsWith("https://") ? photo : ""));
         }
         return out;
     }
@@ -281,7 +280,7 @@ final class Config {
     static final String PROFILE = "profile";
 
     /** Keys of the switches in the Settings menu; the same names as in config.xml and config.json. */
-    static final String DREAM_ANALOG = "dream_analog", GRID_COLUMNS = "grid_columns", ADVANCED_EFFECTS = "advanced_effects";
+    static final String DREAM_ANALOG = "dream_analog", GRID_COLUMNS = "grid_columns";
 
     private static SharedPreferences toggles(Context ctx) {
         return ctx.getSharedPreferences("toggles", Context.MODE_PRIVATE);

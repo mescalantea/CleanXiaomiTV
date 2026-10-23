@@ -186,7 +186,7 @@ public class MainActivity extends Activity {
             rows.add(i);
         }
         if (playingId != null) current = indexOf(playingId);
-        menuStatus.setText(channels.size() + " channels");
+        menuStatus.setText(getString(R.string.channels_count, channels.size()));
         adapter.notifyDataSetChanged();
     }
 
@@ -207,7 +207,7 @@ public class MainActivity extends Activity {
 
         TextView title = text(14, 500, 0x99FFFFFF);
         title.setLetterSpacing(0.22f);
-        title.setText("CHANNELS");
+        title.setText(R.string.channels_title);
         menu.addView(title);
         menuStatus = text(13, 400, 0x66FFFFFF);
         menuStatus.setPadding(0, dp(4), 0, dp(14));
@@ -499,7 +499,7 @@ public class MainActivity extends Activity {
         final ChannelList.Channel c = channels.get(index);
         prefs.edit().putString("last", c.id).apply();
         adapter.notifyDataSetChanged();
-        message.setText("Loading…");
+        message.setText(R.string.loading);
         message.setVisibility(View.VISIBLE);
         if (!menuOpen()) showBar(c, index);
 
@@ -521,7 +521,7 @@ public class MainActivity extends Activity {
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_READY) message.setVisibility(View.GONE);
                 else if (state == Player.STATE_BUFFERING) {
-                    message.setText("Loading…");
+                    message.setText(R.string.loading);
                     message.setVisibility(View.VISIBLE);
                 }
             }
@@ -534,7 +534,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPlayerError(PlaybackException e) {
                 Log.w(TAG, c.name + ": " + e.getErrorCodeName());
-                message.setText(c.name + " isn't available right now.\nUp / Down for another channel, OK for the list.");
+                message.setText(getString(R.string.unavailable, c.name));
                 message.setVisibility(View.VISIBLE);
             }
         });

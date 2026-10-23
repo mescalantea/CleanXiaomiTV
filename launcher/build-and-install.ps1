@@ -68,6 +68,7 @@ Write-Host $out
 if ("$out" -match 'Error') { throw 'could not set the new launcher as home; the stock launcher was left untouched' }
 @(
     'pm grant com.majnioui.cleanxiaomitv android.permission.ACCESS_FINE_LOCATION 2>/dev/null; echo location-granted',
+    'settings put secure location_mode 3; echo location-on',
     'cmd notification allow_listener com.majnioui.cleanxiaomitv/com.gathin.tvhome.MediaListener; echo now-playing-allowed',
     'cmd package compile -m speed -f com.majnioui.cleanxiaomitv',
     "am start -W -n com.majnioui.cleanxiaomitv/com.gathin.tvhome.MainActivity | grep -E '^(Status|Error)'",

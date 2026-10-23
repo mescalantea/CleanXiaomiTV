@@ -87,10 +87,10 @@ public class MainActivity extends Activity {
         place = text(18, 400, 0xB3FFFFFF);
         place.setLetterSpacing(0.25f);
         top.addView(place, new LinearLayout.LayoutParams(0, -2, 1f));
-        refresh = pill("Refresh", R.drawable.ic_refresh);
+        refresh = pill(getString(R.string.weather_refresh), R.drawable.ic_refresh);
         refresh.setOnClickListener(v -> load(true));
         top.addView(refresh);
-        TextView city = pill("Change city", R.drawable.ic_place);
+        TextView city = pill(getString(R.string.weather_change_city), R.drawable.ic_place);
         city.setOnClickListener(v -> openSearch());
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
         clp.leftMargin = dp(14);
@@ -147,7 +147,7 @@ public class MainActivity extends Activity {
     private void load(boolean manual) {
         if (loading) return;
         loading = true;
-        status.setText(manual ? "Refreshing…" : "Loading…");
+        status.setText(manual ? R.string.weather_refreshing : R.string.weather_loading);
         String url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon
                 + "&current=temperature_2m,weather_code,is_day,relative_humidity_2m,wind_speed_10m,apparent_temperature"
                 + "&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=7&timezone=auto";
@@ -163,14 +163,14 @@ public class MainActivity extends Activity {
                 loading = false;
                 if (result == null) {
                     // Offline: keep whatever is on screen.
-                    status.setText("Can't reach Open-Meteo. Showing the last reading, if any.");
+                    status.setText(R.string.weather_offline);
                     return;
                 }
                 try {
                     render(result);
                 } catch (Exception e) {
                     Log.w(TAG, "render: " + e);
-                    status.setText("Unexpected answer from Open-Meteo.");
+                    status.setText(R.string.weather_bad_answer);
                 }
             });
         }).start();
@@ -181,9 +181,9 @@ public class MainActivity extends Activity {
         int code = cur.getInt("weather_code");
         boolean day = cur.optInt("is_day", 1) == 1;
         temp.setText(Math.round(cur.getDouble("temperature_2m")) + "°");
-        condition.setText(icon(code, day) + "  " + describe(code));
-        details.setText("Feels like " + Math.round(cur.getDouble("apparent_temperature")) + "°  ·  Humidity "
-                + cur.getInt("relative_humidity_2m") + "%  ·  Wind " + Math.round(cur.getDouble("wind_speed_10m")) + " km/h");
+        condition.setText(icon(code, day) + "  " + (describe(code) == 0 ? "" : getString(describe(code))));
+        details.setText(getString(R.string.weather_details, Math.round(cur.getDouble("apparent_temperature")),
+                cur.getInt("relative_humidity_2m"), Math.round(cur.getDouble("wind_speed_10m"))));
 
         JSONObject daily = json.getJSONObject("daily");
         JSONArray dates = daily.getJSONArray("time");
@@ -191,7 +191,7 @@ public class MainActivity extends Activity {
         JSONArray max = daily.getJSONArray("temperature_2m_max");
         JSONArray min = daily.getJSONArray("temperature_2m_min");
         SimpleDateFormat in = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
-        SimpleDateFormat out = new SimpleDateFormat("EEE", Locale.ENGLISH);
+        SimpleDateFormat out = new SimpleDateFormat("EEE", Locale.getDefault());
         days.removeAllViews();
         for (int i = 0; i < dates.length(); i++) {
             LinearLayout card = new LinearLayout(this);
@@ -204,7 +204,7 @@ public class MainActivity extends Activity {
             card.setBackground(bg);
             Date d = in.parse(dates.getString(i));
             TextView name = text(20, 500, 0xFFFFFFFF);
-            name.setText(i == 0 ? "Today" : out.format(d));
+            name.setText(i == 0 ? getString(R.string.weather_today) : out.format(d));
             TextView ic = text(40, 400, 0xFFFFFFFF);
             ic.setText(icon(codes.getInt(i), true));
             ic.setPadding(0, dp(8), 0, dp(8));
@@ -217,8 +217,7 @@ public class MainActivity extends Activity {
             lp.setMargins(i == 0 ? 0 : dp(8), 0, i == dates.length() - 1 ? 0 : dp(8), 0);
             days.addView(card, lp);
         }
-        status.setText("Open-Meteo · updated "
-                + new SimpleDateFormat("HH:mm", Locale.ROOT).format(new Date()));
+        status.setText(getString(R.string.weather_updated, new SimpleDateFormat("HH:mm", Locale.ROOT).format(new Date())));
     }
 
     // ---- city search --------------------------------------------------------------------------
@@ -239,10 +238,10 @@ public class MainActivity extends Activity {
         panel.setBackground(pbg);
 
         TextView title = text(28, 500, 0xFFFFFFFF);
-        title.setText("Change city");
+        title.setText(R.string.weather_change_city);
         panel.addView(title);
         TextView hint = text(17, 400, 0x99FFFFFF);
-        hint.setText("Type a city name, then press Search on the keyboard.");
+        hint.setText(R.string.weather_search_hint);
         hint.setPadding(0, dp(6), 0, dp(20));
         panel.addView(hint);
 
@@ -310,11 +309,11 @@ public class MainActivity extends Activity {
         if (name.isEmpty()) return;
         InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         if (imm != null) imm.hideSoftInputFromWindow(query.getWindowToken(), 0);
-        searchStatus.setText("Searching…");
+        searchStatus.setText(R.string.weather_searching);
         results.removeAllViews();
         final String url;
         try {
-            url = "https://geocoding-api.open-meteo.com/v1/search?count=4&language=en&format=json&name="
+            url = "https://geocoding-api.open-meteo.com/v1/search?count=4&language=" + Locale.getDefault().getLanguage() + "&format=json&name="
                     + URLEncoder.encode(name, "UTF-8");
         } catch (Exception e) {
             return;
@@ -335,14 +334,14 @@ public class MainActivity extends Activity {
     private void showResults(JSONArray list) {
         results.removeAllViews();
         if (list == null) {
-            searchStatus.setText("Can't reach the city search. Check the connection and try again.");
+            searchStatus.setText(R.string.weather_search_offline);
             return;
         }
         if (list.length() == 0) {
-            searchStatus.setText("No city found. Try another spelling.");
+            searchStatus.setText(R.string.weather_no_city);
             return;
         }
-        searchStatus.setText("Choose one:");
+        searchStatus.setText(R.string.weather_choose);
         View first = null;
         for (int i = 0; i < list.length(); i++) {
             JSONObject r = list.optJSONObject(i);
@@ -438,19 +437,20 @@ public class MainActivity extends Activity {
         return "🌧️";
     }
 
-    private static String describe(int code) {
-        if (code == 0) return "Clear";
-        if (code == 1) return "Mostly clear";
-        if (code == 2) return "Partly cloudy";
-        if (code == 3) return "Overcast";
-        if (code == 45 || code == 48) return "Fog";
-        if (code >= 51 && code <= 57) return "Drizzle";
-        if (code >= 61 && code <= 67) return "Rain";
-        if (code >= 71 && code <= 77) return "Snow";
-        if (code >= 80 && code <= 82) return "Showers";
-        if (code == 85 || code == 86) return "Snow showers";
-        if (code >= 95) return "Thunderstorm";
-        return "";
+    /** The WMO code's description, or 0 when it has none. */
+    private static int describe(int code) {
+        if (code == 0) return R.string.w_clear;
+        if (code == 1) return R.string.w_mostly_clear;
+        if (code == 2) return R.string.w_partly_cloudy;
+        if (code == 3) return R.string.w_overcast;
+        if (code == 45 || code == 48) return R.string.w_fog;
+        if (code >= 51 && code <= 57) return R.string.w_drizzle;
+        if (code >= 61 && code <= 67) return R.string.w_rain;
+        if (code >= 71 && code <= 77) return R.string.w_snow;
+        if (code >= 80 && code <= 82) return R.string.w_showers;
+        if (code == 85 || code == 86) return R.string.w_snow_showers;
+        if (code >= 95) return R.string.w_thunderstorm;
+        return 0;
     }
 
     private static String fetch(String url) throws Exception {
