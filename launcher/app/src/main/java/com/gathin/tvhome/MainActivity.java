@@ -791,7 +791,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         orderPanel.setAlpha(0f);
         root.addView(orderPanel, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         orderPanel.animate().alpha(1f).setDuration(200).start();
-        hero.animate().alpha(0f).setDuration(200).start();
+        for (View under : new View[] {hero, heroImage, sectionList, findViewById(R.id.header)}) under.animate().alpha(0f).setDuration(200).start();
     }
 
     private void endSectionMove() {
@@ -802,19 +802,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         orderPanel = null;
         orderRows.clear();
         panel.animate().alpha(0f).setDuration(200).withEndAction(() -> root.removeView(panel)).start();
-        if (heroItem != null) hero.animate().alpha(1f).setDuration(200).start();
+        sectionList.animate().alpha(1f).setDuration(200).start();
+        findViewById(R.id.header).animate().alpha(1f).setDuration(200).start();
+        showHero(heroItem);
         scrollTo(s, getCurrentFocus());
     }
 
     /** Move mode's list over the dimmed Home: one row per shown section, the moving one lifted. */
     private View orderPanel(Section lifted) {
         FrameLayout dim = new FrameLayout(this);
-        dim.setBackgroundColor(0xBF000000);
+        dim.setBackgroundColor(0xD9000000);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setClipChildren(false);
-        list.addView(panelText(getString(R.string.section_order_title), 22, 600, 0xFFFFFFFF));
+        TextView heading = panelText(getString(R.string.section_order_title), 22, 600, 0xFFFFFFFF);
+        heading.setGravity(Gravity.CENTER_HORIZONTAL);
+        list.addView(heading);
         TextView hint = panelText(getString(R.string.section_order_hint), 14, 400, 0x99FFFFFF);
+        hint.setGravity(Gravity.CENTER_HORIZONTAL);
         hint.setPadding(0, (int) (6 * density), 0, (int) (8 * density));
         list.addView(hint);
         for (Section each : sections) {
@@ -832,11 +837,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private View orderRow(Section s, boolean lifted) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding((int) (20 * density), 0, (int) (14 * density), 0);
+        // The lifted row is wider rather than scaled or raised: this TV draws a rounded box with square corners
+        // once it is scaled or has an elevation.
+        int inset = lifted ? 0 : (int) (12 * density), padding = inset + (int) (24 * density);
         android.graphics.drawable.GradientDrawable fill = new android.graphics.drawable.GradientDrawable();
         fill.setCornerRadius(16 * density);
-        fill.setColor(lifted ? 0xFFFFFFFF : 0x1FFFFFFF);
-        row.setBackground(fill);
+        fill.setColor(lifted ? 0xFFFFFFFF : 0xE62A2A2E);
+        row.setBackground(new android.graphics.drawable.InsetDrawable(fill, inset, 0, inset, 0));
+        row.setPadding(padding, 0, padding, 0);
         ImageView arrows = new ImageView(this);
         arrows.setImageResource(R.drawable.ic_reorder);
         arrows.setColorFilter(0xFF111111);
@@ -858,11 +866,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) (114 * density), (int) (64 * density));
             lp.setMarginStart((int) (10 * density));
             row.addView(thumb, lp);
-        }
-        if (lifted) {
-            row.setElevation(10 * density);
-            row.setScaleX(1.03f);
-            row.setScaleY(1.03f);
         }
         return row;
     }
