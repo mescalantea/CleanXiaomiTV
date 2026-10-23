@@ -10,7 +10,6 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -115,7 +114,7 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(0xFF000000);
         surface = new SurfaceView(this);
         root.addView(surface, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
-        message = text(22, 400, 0xCCFFFFFF);
+        message = text(22, 500, 0xCCFFFFFF);
         message.setGravity(Gravity.CENTER);
         root.addView(message, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         buildBar();
@@ -227,7 +226,7 @@ public class MainActivity extends Activity {
         title.setLetterSpacing(0.22f);
         title.setText(R.string.channels_title);
         menu.addView(title);
-        menuStatus = text(13, 500, 0x99FFFFFF);
+        menuStatus = text(15, 500, 0x99FFFFFF);
         menuStatus.setPadding(0, dp(4), 0, dp(14));
         menu.addView(menuStatus);
 
@@ -374,7 +373,7 @@ public class MainActivity extends Activity {
         public View getView(int position, View convert, ViewGroup parent) {
             Object row = rows.get(position);
             if (row instanceof String) {
-                TextView h = convert instanceof TextView ? (TextView) convert : text(13, 500, 0x99FFFFFF);
+                TextView h = convert instanceof TextView ? (TextView) convert : text(15, 600, 0x99FFFFFF);
                 h.setText(((String) row).toUpperCase(Locale.ROOT));
                 h.setLetterSpacing(0.12f);
                 h.setPadding(dp(12), dp(position == 0 ? 4 : 18), 0, dp(8));
@@ -409,10 +408,10 @@ public class MainActivity extends Activity {
             r.setBackgroundResource(R.drawable.row_bg);
             ColorStateList fg = getColorStateList(R.color.row_text);
             ColorStateList dim = getColorStateList(R.color.row_text_dim);
-            number = text(14, 500, 0);
+            number = text(15, 500, 0);
             number.setTextColor(dim);
             number.setGravity(Gravity.END);
-            r.addView(number, new LinearLayout.LayoutParams(dp(26), -2));
+            r.addView(number, new LinearLayout.LayoutParams(dp(30), -2));
             FrameLayout logoBox = new FrameLayout(MainActivity.this);
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(dp(8));
@@ -428,12 +427,12 @@ public class MainActivity extends Activity {
             r.addView(logoBox, llp);
             LinearLayout texts = new LinearLayout(MainActivity.this);
             texts.setOrientation(LinearLayout.VERTICAL);
-            name = text(17, 500, 0);
+            name = text(19, 600, 0);
             name.setTextColor(fg);
             name.setSingleLine(true);
             name.setEllipsize(TextUtils.TruncateAt.END);
             texts.addView(name);
-            onAir = text(12, 400, 0);
+            onAir = text(15, 500, 0);
             onAir.setTextColor(dim);
             onAir.setSingleLine(true);
             onAir.setEllipsize(TextUtils.TruncateAt.END);
@@ -508,11 +507,11 @@ public class MainActivity extends Activity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.setPadding(dp(18), 0, 0, 0);
-        barName = text(24, 500, 0xFFFFFFFF);
-        barGroup = text(15, 400, 0xA6FFFFFF);
-        barNow = text(15, 500, 0xE6FFFFFF);
+        barName = text(24, 600, 0xFFFFFFFF);
+        barGroup = text(15, 500, 0xA6FFFFFF);
+        barNow = text(16, 600, 0xE6FFFFFF);
         barNow.setPadding(0, dp(8), 0, 0);
-        barNext = text(14, 400, 0x99FFFFFF);
+        barNext = text(15, 500, 0x99FFFFFF);
         barNext.setPadding(0, dp(3), 0, 0);
         for (TextView t : new TextView[] {barNow, barNext}) {
             t.setSingleLine(true);
@@ -654,7 +653,7 @@ public class MainActivity extends Activity {
         guidePanel.setPadding(dp(24), dp(36), dp(24), dp(24));
         guidePanel.setBackgroundColor(0xF20B0D10);
         guidePanel.setVisibility(View.GONE);
-        guideTitle = text(20, 500, 0xFFFFFFFF);
+        guideTitle = text(20, 600, 0xFFFFFFFF);
         guideTitle.setPadding(dp(12), 0, 0, dp(14));
         guidePanel.addView(guideTitle);
         guideList = new ListView(this);
@@ -723,7 +722,7 @@ public class MainActivity extends Activity {
 
         @Override
         public View getView(int position, View convert, ViewGroup parent) {
-            TextView t = convert instanceof TextView ? (TextView) convert : text(16, 400, 0);
+            TextView t = convert instanceof TextView ? (TextView) convert : text(16, 500, 0);
             Epg.Programme p = guideItems.get(position);
             long now = System.currentTimeMillis();
             boolean onAir = p.start <= now && now < p.stop;
@@ -823,7 +822,9 @@ public class MainActivity extends Activity {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         if (color != 0) t.setTextColor(color);
         t.setIncludeFontPadding(false);
-        t.setTypeface(Build.VERSION.SDK_INT >= 28 ? Typeface.create(font, weight, false) : font);
+        // Outfit is a variable font: its weight comes from the wght axis, which Typeface.create leaves at Thin.
+        t.setTypeface(font);
+        t.setFontVariationSettings("'wght' " + weight);
         return t;
     }
 

@@ -8,7 +8,6 @@ import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -254,6 +253,7 @@ public class MainActivity extends Activity {
         query.setHintTextColor(0x66FFFFFF);
         query.setHint("e.g. Rabat, Marrakech, Paris");
         query.setTypeface(font);
+        query.setFontVariationSettings("'wght' 500");
         query.setPadding(dp(20), dp(14), dp(20), dp(14));
         query.setBackground(fieldBackground());
         Drawable search = getDrawable(R.drawable.ic_search);
@@ -472,7 +472,9 @@ public class MainActivity extends Activity {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         t.setTextColor(color);
         t.setIncludeFontPadding(false);
-        t.setTypeface(Build.VERSION.SDK_INT >= 28 ? Typeface.create(font, weight, false) : font);
+        // Outfit is a variable font: its weight comes from the wght axis, which Typeface.create leaves at Thin.
+        t.setTypeface(font);
+        t.setFontVariationSettings("'wght' " + weight);
         return t;
     }
 
