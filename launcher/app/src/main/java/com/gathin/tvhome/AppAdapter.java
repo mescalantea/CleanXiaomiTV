@@ -244,8 +244,8 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         float density = parent.getResources().getDisplayMetrics().density;
         int width = parent.getWidth() > 0 ? parent.getWidth() : parent.getMeasuredWidth();
         int inner = width - parent.getPaddingLeft() - parent.getPaddingRight();
-        // Dock tiles fit `columns` per row, grid tiles `grid_columns` (smaller when that is more).
-        int w = tileWidthPx(inner, viewType == TYPE_DOCK ? dockSize : gridColumns, density), h = tileHeightPx(w);
+        // Every tile, dock apps included, fits `grid_columns` per row.
+        int w = tileWidthPx(inner, gridColumns, density), h = tileHeightPx(w);
         View card = v.findViewById(R.id.card);
         ViewGroup.LayoutParams cardLp = card.getLayoutParams();
         cardLp.width = w;

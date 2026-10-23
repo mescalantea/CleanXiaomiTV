@@ -248,11 +248,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         appOrder = DockEditor.loadAppOrder(this, dockApps);
 
         grid = findViewById(R.id.grid);
-        // Spans = lcm of both row widths, so the dock row and grid rows each split it evenly.
-        int gcd = COLUMNS, rem = GRID_COLUMNS;
-        while (rem != 0) { int t = gcd % rem; gcd = rem; rem = t; }
-        final int spans = COLUMNS / gcd * GRID_COLUMNS;
-        GridLayoutManager glm = new GridLayoutManager(this, spans) {
+        // One grid, Google TV style: the dock apps are simply its first tiles, the same size as the rest.
+        GridLayoutManager glm = new GridLayoutManager(this, GRID_COLUMNS) {
             /**
              * Keep the rows just off screen laid out (half a screen beyond each edge). The first grid row
              * sits below the screen's edge under the dock, so without this Down found no tile there and
@@ -278,16 +275,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 return true;
             }
         };
-        glm.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
-            @Override
-            public int getSpanSize(int position) {
-                return spans / (position < COLUMNS ? COLUMNS : GRID_COLUMNS);
-            }
-        });
         grid.setLayoutManager(glm);
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
-        grid.addItemDecoration(new DockDecoration(COLUMNS, density));
         grid.setLayoutAnimation(new LayoutAnimationController(
                 AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
         adapter = new AppAdapter(this, this, COLUMNS, cfg, dockApps, appOrder);
@@ -310,12 +300,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int h = b - t;
             // Item height follows the tile size, which follows the column count (AppAdapter.tileWidthPx).
             int inner = (r - l) - grid.getPaddingLeft() - grid.getPaddingRight();
-            int dockH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(AppAdapter.tileWidthPx(inner, COLUMNS, density)), density);
             int gridH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(AppAdapter.tileWidthPx(inner, GRID_COLUMNS, density)), density);
-            int dockRow = dockH + (int) ((6 + 12) * density);   // item height plus DockDecoration offsets
+            int dockRow = gridH;
             int gridRows = gridH * rowsBelowDock;
-            // With no rows below, the next row stays out of sight until Down: the dock item ends in the strip
-            // where the focused tile's name shows, and reaches a little past the screen's edge below it.
+            // The first row sits at the bottom, under the shelf. With no rows below, the next row stays out of
+            // sight until Down: the item ends in the strip where the focused tile's name shows, and reaches a
+            // little past the screen's edge below it.
             // With rows below, a little room under them.
             int spare = rowsBelowDock > 0 ? (int) (30 * density) : -(int) (10 * density);
             int want = Math.max(0, h - dockRow - gridRows - spare);
@@ -344,7 +334,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         @Override
                         public void down() {
                             if (shelfShowing()) shelf.focus();
-                            else focusTile(lastFocused % COLUMNS);
+                            else focusTile(lastFocused % GRID_COLUMNS);
                         }
                     });
             FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -364,7 +354,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
             @Override
             public void down() {
-                focusTile(lastFocused % COLUMNS);
+                focusTile(lastFocused % GRID_COLUMNS);
             }
 
             @Override
@@ -383,7 +373,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // wherever the focus finder lands.
                 if (cardShowing()) nowCard.defaultButton().requestFocus();
                 else if (shelfShowing()) shelf.focus();
-                else focusTile(lastFocused % COLUMNS);
+                else focusTile(lastFocused % GRID_COLUMNS);
                 return true;
             }
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
@@ -661,10 +651,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.offsetDescendantRectToMyCoords(card, r);
         float pad = 6f * density;        // room for the zoomed tile and its outline
         View item = (View) card.getParent();
-        if (position < COLUMNS) {
-            // Dock: park it at the bottom of the screen and show the top shelf for this app.
-            int decoratedTop = item.getTop() - (int) (6 * density);
-            int dy = decoratedTop - grid.getPaddingTop();
+        if (position < GRID_COLUMNS) {
+            // First row (the dock apps lead it): park it at the bottom of the screen, with the shelf above.
+            int dy = item.getTop() - grid.getPaddingTop();
             // Only when the row is actually off: a few pixels' mismatch must not start a scroll on every move.
             if (Math.abs(dy) > (int) (8 * density)) glide(dy);
             showHero(position, r.top - dy);
@@ -691,7 +680,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The focused tile's name shows under it (AppAdapter); here the glow, the photo credit and the shelf follow the dock. */
     private void showHero(int position, float dockTopInRoot) {
         int color = adapter.ambientColorAt(position);
-        heroY = dockTopInRoot - DockDecoration.PAD_Y * density;
+        heroY = dockTopInRoot - 12 * density;
 
         if (!heroShown) {
             TextView caption = findViewById(R.id.photoCaption);
@@ -786,7 +775,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
             shelfView.post(this::placeShelf);
         } else if (shelfView.getVisibility() == View.VISIBLE) {
-            if (shelfView.hasFocus()) focusTile(lastFocused % COLUMNS);
+            if (shelfView.hasFocus()) focusTile(lastFocused % GRID_COLUMNS);
             shelfView.animate().alpha(0f).setDuration(260).withEndAction(() -> {
                 if (!heroShown || !shelf.hasItems()) shelfView.setVisibility(View.INVISIBLE);
             }).start();
@@ -841,39 +830,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int target;
         // Horizontal: swallow the key at a row's ends so focus never wraps to the next row or
         // escapes up into the top bar. Mid-row moves fall through to the default focus search.
-        // The dock row has COLUMNS slots, every grid row below it GRID_COLUMNS.
-        boolean dock = position < COLUMNS;
-        int g = position - COLUMNS;                        // index within the grid, when not in the dock
-        int col = dock ? position : g % GRID_COLUMNS;
-        int width = dock ? COLUMNS : GRID_COLUMNS;
+        int col = position % GRID_COLUMNS;
+        boolean firstRow = position < GRID_COLUMNS;
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
             return col == 0;
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            return col == width - 1 || position == count - 1;
+            return col == GRID_COLUMNS - 1 || position == count - 1;
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (dock && shelfShowing()) {                  // dock row: the shelf above it
+            if (firstRow && shelfShowing()) {              // first row: the shelf above it
                 shelf.focus();
                 return true;
             }
-            if (dock && cardShowing()) {                   // dock row: the now playing card above it
+            if (firstRow && cardShowing()) {               // first row: the now playing card above it
                 nowCard.defaultButton().requestFocus();
                 return true;
             }
-            if (dock) return false;                        // dock row: let focus move to the top bar
-            if (g < GRID_COLUMNS) {
-                // First grid row: the dock slot under the same horizontal spot.
-                target = Math.min((int) ((col + 0.5f) / GRID_COLUMNS * COLUMNS), Math.min(COLUMNS, count) - 1);
-            } else {
-                target = position - GRID_COLUMNS;
-            }
-        } else if (dock) {
-            if (count <= COLUMNS) return true;             // nothing below the dock
-            target = Math.min(COLUMNS + (int) ((col + 0.5f) / COLUMNS * GRID_COLUMNS), count - 1);
+            if (firstRow) return false;                    // first row: let focus move to the top bar
+            target = position - GRID_COLUMNS;
         } else {
-            int lastRowStart = COLUMNS + ((count - 1 - COLUMNS) / GRID_COLUMNS) * GRID_COLUMNS;
-            if (position >= lastRowStart) return true;     // already on the last row: stay put
+            if (position / GRID_COLUMNS == (count - 1) / GRID_COLUMNS) return true;   // last row: stay put
             target = Math.min(position + GRID_COLUMNS, count - 1);
         }
         focusTile(target);
@@ -1275,7 +1252,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             nowCard.setVisibility(View.VISIBLE);
             nowCard.animate().alpha(1f).setDuration(300).start();
         } else if (!show && nowCard.getVisibility() == View.VISIBLE) {
-            if (nowCard.hasFocus()) focusTile(lastFocused % COLUMNS);
+            if (nowCard.hasFocus()) focusTile(lastFocused % GRID_COLUMNS);
             nowCard.animate().alpha(0f).setDuration(300).withEndAction(() -> {
                 if (!nowCard.hasTrack()) nowCard.setVisibility(View.GONE);
             }).start();
