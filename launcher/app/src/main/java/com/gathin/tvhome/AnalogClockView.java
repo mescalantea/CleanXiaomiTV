@@ -15,6 +15,7 @@ import java.util.Calendar;
  * that costs little.
  */
 final class AnalogClockView extends View {
+    private static final int GOLD = 0xFFF2C879;
     private final float density;
     private final Paint face = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -49,7 +50,7 @@ final class AnalogClockView extends View {
         hand.setColor(0xF2FFFFFF);
         hand.setShadowLayer(4 * density, 0, density, 0x80000000);
         second.setStrokeCap(Paint.Cap.ROUND);
-        second.setColor(MainActivity.PRAYER_GOLD);
+        second.setColor(GOLD);
         second.setStrokeWidth(1.4f * density);
         second.setShadowLayer(3 * density, 0, density, 0x66000000);
     }

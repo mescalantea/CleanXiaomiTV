@@ -16,7 +16,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * The now playing pill under the top buttons, the same height as the prayer pill: the cover as a circle
+ * The now playing pill under the top buttons: the cover as a circle
  * in the pill's round end, the song with moving bars, the artist, and previous / play-pause / next. The
  * glass takes on the cover's colour, strongest behind it and fading towards the buttons, so cover and pill
  * read as one. OK on a button does that; holding OK
@@ -211,8 +211,7 @@ final class NowPlayingCard extends LinearLayout {
         t.setSingleLine(true);
         t.setEllipsize(TextUtils.TruncateAt.END);
         t.setIncludeFontPadding(false);
-        // Outfit is a variable font: set the weight on its axis, as the layouts do, so the song reads like
-        // the prayer pill beside it.
+        // Outfit is a variable font: set the weight on its axis, as the layouts do.
         if (font != null) t.setTypeface(font);
         t.setFontVariationSettings("'wght' " + weight);
         return t;

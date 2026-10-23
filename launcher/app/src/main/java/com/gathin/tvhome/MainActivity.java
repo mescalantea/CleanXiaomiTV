@@ -118,26 +118,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private NowPlaying nowPlaying;
     private NowPlaying.Track track;
     private TextView btnWifi;
-    private TextView shamsiDate;
     private TextView weather;
     private String weatherUrl;
     private String weatherPlace;
     /** When the weather was last fetched (elapsedRealtime), successfully or not. */
     private long weatherAt = -WEATHER_MS;
     private boolean weatherLoading;
-    /** Prayer pill under the clock (home_prayer); switched from the Settings menu. */
-    private boolean homePrayer;
-    private String prayerLat, prayerLon;
-    private int prayerMethod;
-    private View prayerPill;
-    private TextView prayerName, prayerTime, prayerLeft;
-    private ImageView prayerIcon;
-    /** The last times loaded; kept past midnight until the new day's arrive, a minute out at most. */
-    private Prayer.Day prayerDay;
-    /** When the times were last requested (elapsedRealtime). */
-    private long prayerAt = -5 * MINUTE_MS;
-    private boolean prayerLoading;
-    private boolean shamsi;
     private String vpnApp;
     private SpringAnimation springX, springY;
     private float glassTargetX, glassTargetY;
@@ -236,7 +222,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateGreeting();
             updateWifiLabel();
             updateWeather();
-            updatePrayer();
             if (homePhotoOn) loadHomePhoto();   // a new photo when the next slot starts
             handler.postDelayed(this, MINUTE_MS);
         }
@@ -268,14 +253,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         reorderHint = findViewById(R.id.reorderHint);
         greeting = findViewById(R.id.greeting);
         btnWifi = findViewById(R.id.btnWifi);
-        shamsiDate = findViewById(R.id.shamsiDate);
-        shamsi = cfg.shamsiDate;
-        if (shamsi) {
-            shamsiDate.setVisibility(View.VISIBLE);
-            TextView date = findViewById(R.id.date);
-            date.setTextSize(11f);
-            date.setPadding(0, (int) (4 * density), 0, 0);
-        }
         vpnApp = cfg.vpnApp;
         moduleCards = cfg.moduleCards;
         hiddenApps = new HashSet<>(cfg.hiddenApps);
@@ -285,19 +262,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" + cfg.weatherLatitude
                     + "&longitude=" + cfg.weatherLongitude + "&current=temperature_2m,weather_code,is_day&timezone=auto";
         }
-        prayerPill = findViewById(R.id.prayerPill);
-        prayerIcon = findViewById(R.id.prayerIcon);
-        prayerName = findViewById(R.id.prayerName);
-        prayerTime = findViewById(R.id.prayerTime);
-        prayerLeft = findViewById(R.id.prayerLeft);
-        prayerPill.setBackground(new GlassDrawable(prayerPill, backdrop, 19 * density, density));
-        // Prayer times use the weather coordinates; without them there is nothing to show.
-        if (!cfg.weatherLatitude.isEmpty() && !cfg.weatherLongitude.isEmpty()) {
-            prayerLat = cfg.weatherLatitude;
-            prayerLon = cfg.weatherLongitude;
-        }
-        prayerMethod = cfg.prayerMethod;
-        homePrayer = cfg.homePrayer && prayerLat != null;
         dockApps = DockEditor.loadDock(this, cfg.dockApps, COLUMNS);
         appOrder = DockEditor.loadAppOrder(this, dockApps);
 
@@ -568,7 +532,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateGreeting();
         updateWifiLabel();
         updateWeather();
-        updatePrayer();
         updateInputsButton();
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (nowPlaying != null) nowPlaying.start();
@@ -1029,14 +992,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         // Switches that stay on the TV (Config.setToggle); the screensaver reads them when it next starts.
         addSeparator(rows);
-        if (prayerLat != null) {
-            addToggleRow(rows, R.drawable.ic_prayer, R.string.toggle_home_prayer, Config.HOME_PRAYER, homePrayer, on -> {
-                homePrayer = on;
-                updatePrayer();
-            });
-            addToggleRow(rows, R.drawable.ic_prayer, R.string.toggle_dream_prayer, Config.DREAM_PRAYER, cfg.dreamPrayer, null);
-        }
-        addToggleRow(rows, R.drawable.ic_athkar, R.string.toggle_dream_athkar, Config.DREAM_ATHKAR, cfg.dreamAthkar, null);
         addToggleRow(rows, R.drawable.ic_clock, R.string.toggle_dream_analog, Config.DREAM_ANALOG, cfg.dreamAnalog, null);
 
         for (int i = 0; i < rows.getChildCount(); i++) {
@@ -1288,7 +1243,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         else if (hour < 22) res = R.string.good_evening;
         else res = R.string.good_night;
         greeting.setText(res);
-        if (shamsi) shamsiDate.setText(Shamsi.today());
     }
 
     // ---- weather --------------------------------------------------------------------------------
@@ -1330,58 +1284,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
                 weather.setText(result);
                 weather.setVisibility(View.VISIBLE);
-            });
-        }).start();
-    }
-
-    // ---- prayer times ---------------------------------------------------------------------------
-
-    /** Gold for the moon and for a prayer that is due: warm against the photo, unlike the green of "connected". */
-    static final int PRAYER_GOLD = 0xFFF2C879;
-
-    /** Updates the pill every minute; today's times come from the saved file, or once a day from Aladhan. */
-    private void updatePrayer() {
-        if (!homePrayer) {
-            prayerPill.setVisibility(View.GONE);
-            return;
-        }
-        String key = Prayer.key(prayerLat, prayerLon, prayerMethod);
-        if (prayerDay == null || !prayerDay.key.equals(key)) {
-            Prayer.Day saved = Prayer.cached(this, key);
-            if (saved != null) prayerDay = saved;
-            else fetchPrayer();
-        }
-        if (prayerDay == null) return;
-        Prayer.Next next = Prayer.next(prayerDay);
-        boolean due = next.minutesLeft <= Prayer.NOW_MINUTES;   // the last quarter hour, and "now"
-        prayerName.setText(Prayer.name(this, next.index));
-        prayerName.setTextColor(due ? PRAYER_GOLD : 0xFFFFFFFF);
-        prayerTime.setText(Prayer.time(this, prayerDay.minutes[next.index]));
-        prayerLeft.setText(Prayer.countdown(this, next));
-        prayerLeft.setTextColor(due ? PRAYER_GOLD : 0xB3FFFFFF);
-        prayerIcon.setImageTintList(android.content.res.ColorStateList.valueOf(PRAYER_GOLD));
-        if (prayerPill.getVisibility() != View.VISIBLE) {
-            prayerPill.setAlpha(0f);
-            prayerPill.setVisibility(View.VISIBLE);
-            prayerPill.animate().alpha(1f).setDuration(400).start();
-        }
-    }
-
-    /** At most every 5 minutes while the times are missing, off the main thread. */
-    private void fetchPrayer() {
-        long now = android.os.SystemClock.elapsedRealtime();
-        if (prayerLoading || now - prayerAt < 5 * MINUTE_MS) return;
-        prayerAt = now;
-        prayerLoading = true;
-        final String lat = prayerLat, lon = prayerLon;
-        final int method = prayerMethod;
-        new Thread(() -> {
-            Prayer.Day day = Prayer.fetch(getApplicationContext(), lat, lon, method);
-            handler.post(() -> {
-                prayerLoading = false;
-                if (day == null) return;
-                prayerDay = day;
-                updatePrayer();
             });
         }).start();
     }
