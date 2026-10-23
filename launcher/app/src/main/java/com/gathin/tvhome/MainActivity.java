@@ -1357,7 +1357,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int size = Math.round(36 * density);
         button.setContentDescription(p.name);
         button.setImageBitmap(initial(p.name, size));
-        shelf.avatar(p, size, bmp -> {
+        // Asked for at about twice the button's size, so the circle stays sharp.
+        shelf.avatar(p, 2 * size, bmp -> {
             if (p.name.contentEquals(button.getContentDescription())) button.setImageBitmap(roundedArt(bmp, size, 0.5f));
         });
     }
