@@ -50,4 +50,6 @@
     <string name="shelf_title">Para ti</string>
     <string name="shelf_episode" formatted="false">T%1$dE%2$d</string>
     <string name="profiles">Perfiles</string>
+    <string name="shelf_live">EN DIRECTO</string>
+    <string name="shelf_sports">Deportes en abierto</string>
 </resources>

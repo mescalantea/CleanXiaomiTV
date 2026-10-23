@@ -70,6 +70,26 @@
                 android:includeFontPadding="false" />
         </LinearLayout>
 
+        <!-- Sports event on air now. -->
+        <TextView
+            android:id="@+id/shelfBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="6dp"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:background="#FFE5484D"
+            android:text="@string/shelf_live"
+            android:textColor="#FFFFFFFF"
+            android:textSize="9sp"
+            android:fontFamily="@font/outfit"
+            android:fontVariationSettings="'wght' 600"
+            android:letterSpacing="0.06"
+            android:visibility="gone" />
+
         <View
             android:id="@+id/shelfProgress"
             android:layout_width="0dp"

@@ -71,24 +71,39 @@ final class Epg {
 
     /** The programmes of the given channels that overlap [from, to), each channel's sorted by start. */
     static Map<String, List<Programme>> parse(XmlPullParser p, Set<String> ids, long from, long to) throws Exception {
+        return parse(p, ids, from, to, null);
+    }
+
+    /**
+     * @param events when not null, gets the sports events (Sports.isEvent) of the guide's whole range from now
+     *               on, whatever the window and ids
+     */
+    static Map<String, List<Programme>> parse(XmlPullParser p, Set<String> ids, long from, long to,
+                                              List<Sports.Event> events) throws Exception {
         SimpleDateFormat format = new SimpleDateFormat("yyyyMMddHHmmss Z", Locale.ROOT);
         Map<String, List<Programme>> out = new HashMap<>();
         for (int event = p.getEventType(); event != XmlPullParser.END_DOCUMENT; event = p.next()) {
             if (event != XmlPullParser.START_TAG || !"programme".equals(p.getName())) continue;
             String channel = p.getAttributeValue(null, "channel");
-            if (channel == null || !ids.contains(channel)) continue;
+            if (channel == null) continue;
             long start = time(format, p.getAttributeValue(null, "start"));
             long stop = time(format, p.getAttributeValue(null, "stop"));
-            if (start < 0 || stop <= start || stop <= from || start >= to) continue;
-            String title = null;
+            if (start < 0 || stop <= start || stop <= from) continue;
+            boolean listed = ids.contains(channel) && start < to;
+            boolean sport = events != null && Sports.CHANNELS.contains(channel);
+            if (!listed && !sport) continue;
+            String title = null, category = null, desc = null;
             int depth = p.getDepth();
             while ((event = p.next()) != XmlPullParser.END_DOCUMENT) {
                 if (event == XmlPullParser.END_TAG && p.getDepth() == depth) break;
-                if (event == XmlPullParser.START_TAG && title == null && "title".equals(p.getName())) {
-                    title = clean(p.nextText());
-                }
+                if (event != XmlPullParser.START_TAG) continue;
+                if (title == null && "title".equals(p.getName())) title = clean(p.nextText());
+                else if (sport && category == null && "category".equals(p.getName())) category = p.nextText().trim();
+                else if (sport && desc == null && "desc".equals(p.getName())) desc = p.nextText();
             }
             if (title == null || title.isEmpty()) continue;
+            if (sport && Sports.isEvent(channel, category, title, desc, start, stop)) events.add(new Sports.Event(channel, start, stop, title));
+            if (!listed) continue;
             List<Programme> list = out.get(channel);
             if (list == null) out.put(channel, list = new ArrayList<>());
             list.add(new Programme(start, stop, title));
@@ -140,10 +155,11 @@ final class Epg {
             c.setConnectTimeout(10000);
             c.setReadTimeout(30000);
             Map<String, List<Programme>> guide;
+            List<Sports.Event> events = new ArrayList<>();
             try (InputStream in = new GZIPInputStream(c.getInputStream())) {
                 XmlPullParser p = Xml.newPullParser();
                 p.setInput(in, "UTF-8");
-                guide = parse(p, ids, w[0], w[1]);
+                guide = parse(p, ids, w[0], w[1], events);
             } finally {
                 c.disconnect();
             }
@@ -152,6 +168,7 @@ final class Epg {
                 write(guide, out);
             }
             if (!tmp.renameTo(new File(ctx.getFilesDir(), SAVED))) Log.w(TAG, "could not save the guide");
+            Sports.save(ctx, events);
             return guide;
         } catch (Exception e) {
             Log.w(TAG, "guide: " + e);

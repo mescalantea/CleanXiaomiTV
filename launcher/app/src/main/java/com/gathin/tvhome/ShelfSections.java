@@ -7,17 +7,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The shelf's rows in a fixed order (resume, next up, live TV, YouTube). A section that loads with nothing to show
+ * The shelf's rows in a fixed order (resume, next up, live TV, sports, YouTube). A section that loads with nothing to show
  * yet ends in placeholder cards until it is done, so results can arrive one source at a time, and YouTube
  * feed by feed, without anything on screen moving.
  */
 final class ShelfSections {
-    static final int RESUME = 0, NEXT_UP = 1, LIVE = 2, YOUTUBE = 3;
-    private static final int[] PLACEHOLDERS = {2, 2, 2, 3};
+    static final int RESUME = 0, NEXT_UP = 1, LIVE = 2, SPORTS = 3, YOUTUBE = 4;
+    private static final int[] PLACEHOLDERS = {2, 2, 2, 2, 3};
 
     @SuppressWarnings("unchecked")
     private final List<ShelfItem>[] items = new List[] {Collections.emptyList(), Collections.emptyList(),
-            Collections.emptyList(), Collections.emptyList()};
+            Collections.emptyList(), Collections.emptyList(), Collections.emptyList()};
     private final boolean[] loading = new boolean[items.length];
 
     /** A fetch for this section starts; it shows placeholders only while it has no items of its own. */

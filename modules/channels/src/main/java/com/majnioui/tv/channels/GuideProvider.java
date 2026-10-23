@@ -17,7 +17,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Read-only "what is on now" for other apps, such as the launcher's shelf, so they don't download the guide
  * themselves: query content://com.majnioui.tv.channels.guide/now with the wanted tvg-ids as selectionArgs. One
  * row per known channel, in the order asked: tvg_id, name, logo, title, start, stop (title empty and times 0
- * when the guide has nothing on air). Only public TV listings are served. Stale caches are refreshed in the
+ * when the guide has nothing on air). .../sports instead lists the coming big sports events on free public
+ * channels (Sports), on air or later, one row each with the same columns. Only public TV listings are served. Stale caches are refreshed in the
  * background; the answer is always what is saved now.
  */
 public class GuideProvider extends ContentProvider {
@@ -32,13 +33,23 @@ public class GuideProvider extends ContentProvider {
     @Override
     public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
         MatrixCursor out = new MatrixCursor(COLUMNS);
-        if (selectionArgs == null || selectionArgs.length == 0 || getContext() == null) return out;
+        if (getContext() == null) return out;
+        boolean sports = "sports".equals(uri.getLastPathSegment());
+        if (!sports && (selectionArgs == null || selectionArgs.length == 0)) return out;
         List<ChannelList.Channel> channels = ChannelList.load(getContext());
         Map<String, List<Epg.Programme>> guide = Epg.load(getContext());
         refreshIfStale(channels);
         Map<String, ChannelList.Channel> byId = new HashMap<>();
         for (ChannelList.Channel c : channels) byId.put(c.id, c);
         long now = System.currentTimeMillis();
+        if (sports) {
+            // Only events on a channel this app can play.
+            for (Sports.Event e : Sports.upcoming(Sports.load(getContext()), now, 20)) {
+                ChannelList.Channel c = byId.get(e.channel);
+                if (c != null && out.getCount() < 8) out.addRow(new Object[] {c.id, c.name, c.logo, e.title, e.start, e.stop});
+            }
+            return out;
+        }
         for (String id : selectionArgs) {
             ChannelList.Channel c = byId.get(id);
             if (c != null) out.addRow(row(c, guide.get(id), now));

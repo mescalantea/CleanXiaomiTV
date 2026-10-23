@@ -2,7 +2,7 @@ package com.gathin.tvhome;
 
 /** One poster on the Home shelf: a Jellyfin item, a YouTube video, or a placeholder while loading. */
 final class ShelfItem {
-    enum Source { JELLYFIN, YOUTUBE, LIVE, PLACEHOLDER }
+    enum Source { JELLYFIN, YOUTUBE, LIVE, SPORT, PLACEHOLDER }
 
     final Source source;
     /** Jellyfin item id or YouTube video id. */

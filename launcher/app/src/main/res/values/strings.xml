@@ -50,4 +50,6 @@
     <string name="shelf_title">For you</string>
     <string name="shelf_episode" formatted="false">S%1$dE%2$d</string>
     <string name="profiles">Profiles</string>
+    <string name="shelf_live">LIVE</string>
+    <string name="shelf_sports">Sports on free TV</string>
 </resources>

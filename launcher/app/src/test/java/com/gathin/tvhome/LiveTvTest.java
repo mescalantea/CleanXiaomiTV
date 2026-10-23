@@ -25,4 +25,22 @@ public class LiveTvTest {
         assertEquals(-1, i.progress);
         assertNull(i.image);
     }
+
+    @Test
+    public void sportsCardSaysWhenAndWhereAndIsLiveOnlyWhileOn() {
+        java.util.TimeZone madrid = java.util.TimeZone.getTimeZone("Europe/Madrid");
+        java.util.Locale es = new java.util.Locale("es", "ES");
+        long start = 1792868400000L;   // Saturday 24 October 2026, 19:00 UTC = 21:00 in Madrid
+        ShelfItem later = LiveTv.sport("La1.TV", "La 1", "https://example.com/la1.png", "España - Japón",
+                start, start + 7_200_000L, start - 60_000L, es, madrid);
+        assertEquals(ShelfItem.Source.SPORT, later.source);
+        assertEquals("España - Japón", later.title);
+        assertEquals("Sáb 21:00 · La 1", later.subtitle);
+        assertEquals("La1.TV", later.channel);
+        assertEquals(-1, later.progress);
+        ShelfItem on = LiveTv.sport("La1.TV", "La 1", "", "España - Japón", start, start + 7_200_000L, start + 3_600_000L, es, madrid);
+        assertEquals(50, on.progress);
+        assertNull(on.image);
+        assertEquals("Sat 21:00 · La 1", LiveTv.sport("La1.TV", "La 1", "", "x", start, start + 1, 0, java.util.Locale.ENGLISH, madrid).subtitle);
+    }
 }

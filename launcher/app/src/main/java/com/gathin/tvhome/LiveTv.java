@@ -8,6 +8,8 @@ import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 
 /**
  * The shelf's "En directo" cards: favourite live channels with what is on now, read from the Channels app's
@@ -16,6 +18,7 @@ import java.util.List;
 final class LiveTv {
     static final String PACKAGE = "com.majnioui.tv.channels";
     private static final String NOW = "content://com.majnioui.tv.channels.guide/now";
+    private static final String SPORTS = "content://com.majnioui.tv.channels.guide/sports";
     /** Extra the Channels app reads to start on a channel. */
     static final String EXTRA_TVG_ID = "tvg_id";
     private static final String TAG = "TvHome.Live";
@@ -25,12 +28,23 @@ final class LiveTv {
 
     /** The channels in the order asked, or null when the Channels app can't be asked. Blocks. */
     static List<ShelfItem> query(Context ctx, List<String> ids) {
+        return query(ctx, NOW, ids.toArray(new String[0]), false);
+    }
+
+    /** The coming big sports events on free channels ("Deportes en abierto"), or null as above. Blocks. */
+    static List<ShelfItem> sports(Context ctx) {
+        return query(ctx, SPORTS, null, true);
+    }
+
+    private static List<ShelfItem> query(Context ctx, String uri, String[] ids, boolean sports) {
         List<ShelfItem> out = new ArrayList<>();
         long now = System.currentTimeMillis();
-        try (Cursor c = ctx.getContentResolver().query(Uri.parse(NOW), null, null, ids.toArray(new String[0]), null)) {
+        try (Cursor c = ctx.getContentResolver().query(Uri.parse(uri), null, null, ids, null)) {
             if (c == null) return null;
             while (c.moveToNext()) {
-                out.add(item(c.getString(0), c.getString(1), c.getString(2), c.getString(3), c.getLong(4), c.getLong(5), now));
+                out.add(sports ? sport(c.getString(0), c.getString(1), c.getString(2), c.getString(3), c.getLong(4), c.getLong(5),
+                        now, Locale.getDefault(), TimeZone.getDefault())
+                        : item(c.getString(0), c.getString(1), c.getString(2), c.getString(3), c.getLong(4), c.getLong(5), now));
             }
         } catch (Exception e) {
             Log.w(TAG, "guide: " + e);
@@ -44,6 +58,21 @@ final class LiveTv {
         int progress = start > 0 && stop > start && now >= start && now < stop ? (int) ((now - start) * 100 / (stop - start)) : -1;
         return new ShelfItem(ShelfItem.Source.LIVE, id, name, title == null ? "" : title,
                 logo == null || logo.isEmpty() ? null : logo, progress, 0);
+    }
+
+    /**
+     * A sports event: its title, then "Sáb 21:00 · La 1" (day and time in this locale and zone) and the channel's
+     * logo; while it is on, its progress, which also marks it as live.
+     */
+    static ShelfItem sport(String channel, String name, String logo, String title, long start, long stop, long now,
+                           Locale locale, TimeZone zone) {
+        java.text.SimpleDateFormat when = new java.text.SimpleDateFormat("EEE HH:mm", locale);
+        when.setTimeZone(zone);
+        String day = when.format(new java.util.Date(start)).replace(".", "");
+        day = day.isEmpty() ? day : day.substring(0, 1).toUpperCase(locale) + day.substring(1);
+        int progress = now >= start && now < stop ? (int) ((now - start) * 100 / (stop - start)) : -1;
+        return new ShelfItem(ShelfItem.Source.SPORT, channel + "@" + start, title == null ? "" : title, day + " · " + name,
+                logo == null || logo.isEmpty() ? null : logo, progress, start, channel);
     }
 
     /** Opens the Channels app on this channel, or nothing when it is missing. */

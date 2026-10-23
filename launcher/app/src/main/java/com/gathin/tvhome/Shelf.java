@@ -149,13 +149,15 @@ final class Shelf {
         boolean youtube = (subscriptions || !youtubeChannels.isEmpty()) && installed(YouTubeFeed.PACKAGE);
         boolean live = liveOn();
         if (!live) sections.set(ShelfSections.LIVE, Collections.emptyList());
+        boolean sports = installed(LiveTv.PACKAGE);
+        if (!sports) sections.set(ShelfSections.SPORTS, Collections.emptyList());
         if (!jellyfin) {
             sections.set(ShelfSections.RESUME, Collections.emptyList());
             sections.set(ShelfSections.NEXT_UP, Collections.emptyList());
         }
         if (!youtube) sections.set(ShelfSections.YOUTUBE, Collections.emptyList());
         long now = SystemClock.elapsedRealtime();
-        if ((!jellyfin && !youtube && !live) || loading || now - refreshedAt < REFRESH_MS) {
+        if ((!jellyfin && !youtube && !live && !sports) || loading || now - refreshedAt < REFRESH_MS) {
             show();
             return;
         }
@@ -167,6 +169,7 @@ final class Shelf {
         }
         if (feeds) sections.start(ShelfSections.YOUTUBE);
         if (live) sections.start(ShelfSections.LIVE);
+        if (sports) sections.start(ShelfSections.SPORTS);
         show();
         loading = true;
         final List<String> channelsOnTv = tvChannels;
@@ -178,6 +181,7 @@ final class Shelf {
         final int gen = generation;
         io.execute(() -> {
             if (live) post(gen, ShelfSections.LIVE, LiveTv.query(activity, channelsOnTv));
+            if (sports) post(gen, ShelfSections.SPORTS, LiveTv.sports(activity));
             if (jellyfin) {
                 post(gen, ShelfSections.RESUME, jellyfin(() -> Jellyfin.resume(jellyfinUrl, jellyfinKey, user, episode)));
                 post(gen, ShelfSections.NEXT_UP, jellyfin(() -> Jellyfin.nextUp(jellyfinUrl, jellyfinKey, user, episode)));
@@ -221,12 +225,16 @@ final class Shelf {
 
     /** What is on the live channels now, again: called every minute so programmes and progress keep up. */
     void tick() {
-        if (!liveOn()) return;
+        if (!installed(LiveTv.PACKAGE)) return;
         final List<String> ids = tvChannels;
         final int gen = generation;
         io.execute(() -> {
-            List<ShelfItem> now = LiveTv.query(activity, ids);
-            if (now != null) post(gen, ShelfSections.LIVE, now);
+            if (!ids.isEmpty()) {
+                List<ShelfItem> now = LiveTv.query(activity, ids);
+                if (now != null) post(gen, ShelfSections.LIVE, now);
+            }
+            List<ShelfItem> events = LiveTv.sports(activity);
+            if (events != null) post(gen, ShelfSections.SPORTS, events);
         });
     }
 
@@ -331,8 +339,13 @@ final class Shelf {
 
     private void launch(ShelfItem item) {
         if (item.source == ShelfItem.Source.PLACEHOLDER) return;
-        if (item.source == ShelfItem.Source.LIVE) {
-            Intent watch = LiveTv.watch(activity, item.id);
+        if (item.source == ShelfItem.Source.SPORT && item.progress < 0) {
+            // Not on yet: say when and where.
+            android.widget.Toast.makeText(activity, item.subtitle, android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (item.source == ShelfItem.Source.LIVE || item.source == ShelfItem.Source.SPORT) {
+            Intent watch = LiveTv.watch(activity, item.source == ShelfItem.Source.LIVE ? item.id : item.channel);
             if (watch == null) return;
             try {
                 activity.startActivity(watch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -463,7 +476,10 @@ final class Shelf {
             h.image.setImageDrawable(null);
             h.image.setTag(item.image);
             // Channel logos are shown whole, small, above the names; posters fill the card.
-            boolean logo = item.source == ShelfItem.Source.LIVE;
+            boolean logo = item.source == ShelfItem.Source.LIVE || item.source == ShelfItem.Source.SPORT;
+            h.badge.setVisibility(item.source == ShelfItem.Source.SPORT && item.progress >= 0 ? View.VISIBLE : View.GONE);
+            h.card.setContentDescription(item.source == ShelfItem.Source.SPORT
+                    ? activity.getString(R.string.shelf_sports) + ": " + item.title + ", " + item.subtitle : null);
             float d = activity.getResources().getDisplayMetrics().density;
             h.image.setScaleType(logo ? ImageView.ScaleType.FIT_CENTER : ImageView.ScaleType.CENTER_CROP);
             h.image.setPadding(logo ? Math.round(36 * d) : 0, logo ? Math.round(10 * d) : 0,
@@ -478,7 +494,7 @@ final class Shelf {
     }
 
     private final class Holder extends RecyclerView.ViewHolder {
-        final View card, progress, skeleton, scrim;
+        final View card, progress, skeleton, scrim, badge;
         final ImageView image;
         final TextView title, subtitle;
 
@@ -491,6 +507,7 @@ final class Shelf {
             progress = v.findViewById(R.id.shelfProgress);
             skeleton = v.findViewById(R.id.shelfSkeleton);
             scrim = v.findViewById(R.id.shelfScrim);
+            badge = v.findViewById(R.id.shelfBadge);
             card.setClipToOutline(true);
             card.setOnClickListener(view -> {
                 int pos = getBindingAdapterPosition();
