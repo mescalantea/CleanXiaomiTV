@@ -21,7 +21,7 @@ $pkg = 'com.majnioui.cleanxiaomitv'
 $dir = "/sdcard/Android/data/$pkg/files"
 
 if ($Reset) {
-    & $py -I tv.py "rm -f $dir/config.json $dir/wallpaper.jpg; am force-stop $pkg; am start -n $pkg/.MainActivity >/dev/null; echo reset"
+    & $py -I tv.py "rm -f $dir/config.json $dir/wallpaper.jpg; am force-stop $pkg; am start -n $pkg/com.gathin.tvhome.MainActivity >/dev/null; echo reset"
     exit 0
 }
 if (-not $Theme) { throw 'usage: theme.ps1 <theme folder> | -Reset' }
@@ -33,5 +33,5 @@ try { Get-Content $config -Raw | ConvertFrom-Json | Out-Null } catch { throw "$c
 & $py -I tv.py --push $config "$dir/config.json"
 $wall = Join-Path $Theme 'wallpaper.jpg'
 if (Test-Path $wall) { & $py -I b64push.py $wall "$dir/wallpaper.jpg" } else { & $py -I tv.py "rm -f $dir/wallpaper.jpg" | Out-Null }
-& $py -I tv.py "am force-stop $pkg; am start -n $pkg/.MainActivity >/dev/null; echo applied"
+& $py -I tv.py "am force-stop $pkg; am start -n $pkg/com.gathin.tvhome.MainActivity >/dev/null; echo applied"
 Write-Host "Theme $(Split-Path $Theme -Leaf) is on the TV. Undo with: tools\theme.ps1 -TvHost $TvHost -Reset"

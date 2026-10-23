@@ -20,7 +20,7 @@ DIR=/sdcard/Android/data/$PKG/files
 tv() { "$PY" -I tv.py "$@"; }
 
 if [ "${1:-}" = --reset ]; then
-  tv "rm -f $DIR/config.json $DIR/wallpaper.jpg; am force-stop $PKG; am start -n $PKG/.MainActivity >/dev/null; echo reset" | tail -n 1
+  tv "rm -f $DIR/config.json $DIR/wallpaper.jpg; am force-stop $PKG; am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo reset" | tail -n 1
   exit 0
 fi
 THEME="${THEME_ARG:?usage: theme.sh <theme folder> | --reset}"
@@ -35,5 +35,5 @@ if [ -f "$THEME/wallpaper.jpg" ]; then
 else
   tv "rm -f $DIR/wallpaper.jpg" >/dev/null
 fi
-tv "am force-stop $PKG; am start -n $PKG/.MainActivity >/dev/null; echo applied" | tail -n 1
+tv "am force-stop $PKG; am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo applied" | tail -n 1
 echo "Theme $(basename "$THEME") is on the TV. Undo with: tools/theme.sh --reset"

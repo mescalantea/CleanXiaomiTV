@@ -5,13 +5,11 @@
 # Usage: launcher\build-and-install.ps1 -TvHost 192.168.1.50 [-StockLauncher <package>|none]
 #        The stock launcher is detected from the TV when -StockLauncher is not given.
 #        [-InputKeyService]   remote's Input / YouTube / Apps buttons work (Google TV); re-pass on every install
-#        [-HomeKeyService]    remotes whose Home button sends KEYCODE_ALL_APPS (Xiaomi sticks)
 #        [-PrivateDns <hostname>|off]  ad-blocking DNS for the whole TV, dns.adguard-dns.com by default
 param(
     [string]$TvHost = $env:TV_HOST,
     [string]$StockLauncher = '',
     [switch]$InputKeyService,
-    [switch]$HomeKeyService,
     [string]$PrivateDns = $(if ($env:PRIVATE_DNS) { $env:PRIVATE_DNS } else { 'dns.adguard-dns.com' })
 )
 $ErrorActionPreference = 'Stop'
@@ -94,5 +92,4 @@ function Enable-Service([string]$Name) {
     & $py -I ..\tools\tv.py ('s=$(settings get secure enabled_accessibility_services); case "$s" in *' + $Name + '*) ;; null|"") settings put secure enabled_accessibility_services ' + $svc + ' ;; *) settings put secure enabled_accessibility_services "$s:' + $svc + '" ;; esac; settings put secure accessibility_enabled 1; echo ' + $Name + ' enabled')
 }
 if ($InputKeyService) { Enable-Service 'InputKeyService' }
-if ($HomeKeyService) { Enable-Service 'HomeKeyService' }
 Write-Host 'Installed. Press Home on the remote to see it.'
