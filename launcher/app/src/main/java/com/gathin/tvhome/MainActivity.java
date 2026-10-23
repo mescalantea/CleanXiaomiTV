@@ -611,11 +611,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final class Section {
         final String key;
         final int row;
+        final int title;
         final LinearLayout view;
+        final TextView name;
         final RecyclerView list;
 
         Section(String key, int title, RecyclerView list, int row) {
             this.key = key;
+            this.title = title;
             this.row = row;
             this.list = list;
             int margin = getResources().getDimensionPixelSize(R.dimen.home_margin);
@@ -624,7 +627,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             view.setClipChildren(false);
             view.setClipToPadding(false);
             view.setPadding(0, 0, 0, getResources().getDimensionPixelSize(R.dimen.section_gap));
-            TextView name = new TextView(MainActivity.this);
+            name = new TextView(MainActivity.this);
             name.setText(title);
             name.setTextColor(0xE6FFFFFF);
             name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19);
@@ -761,7 +764,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         boolean above = true;
         for (Section s : sections) {
             if (s == target) above = false;
-            s.view.animate().alpha(above ? 0f : 1f).setDuration(200).start();
+            // While a section moves, the one it passes stays visible until it has slid by.
+            s.view.animate().alpha(above ? 0f : 1f).setDuration(200).setStartDelay(moving != null && above ? SECTION_MOVE_MS : 0).start();
         }
     }
 
@@ -775,11 +779,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void startSectionMove(Section s) {
         if (s == null || reorderMode) return;
         moving = s;
+        s.name.setText("\u2195 " + getString(s.title));
+        android.graphics.drawable.GradientDrawable lift = new android.graphics.drawable.GradientDrawable();
+        lift.setColor(0x14FFFFFF);
+        lift.setStroke((int) (2 * density), 0x66FFFFFF);
+        lift.setCornerRadius(16 * density);
+        s.view.setBackground(lift);
+        s.view.setTranslationZ(4 * density);   // drawn over the sections it slides past
         showHint(R.string.section_move_hint);
     }
 
     private void endSectionMove() {
         if (moving == null) return;
+        moving.name.setText(moving.title);
+        moving.view.setBackground(null);
+        moving.view.setTranslationZ(0f);
         moving = null;
         hideHint();
     }
@@ -795,11 +809,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         for (Section each : sections) order.add(each.key);
         Config.saveSectionOrder(this, order);
         View focused = getCurrentFocus();
+        java.util.Map<View, Integer> before = new java.util.HashMap<>();
+        for (int i = 0; i < sectionList.getChildCount(); i++) before.put(sectionList.getChildAt(i), sectionList.getChildAt(i).getTop());
+        int movingTop = s.view.getTop();
         // The other section's view moves, so the focused card's never leaves the window and keeps focus.
         sectionList.removeView(other.view);
         sectionList.addView(other.view, sectionList.indexOfChild(s.view) + (dir > 0 ? 0 : 1));
-        afterLayout(() -> scrollTo(s, focused));
+        afterLayout(() -> {
+            // The moving section holds still on screen; the others start where they were and slide to their places.
+            float shift = movingTop - s.view.getTop();
+            sectionList.animate().cancel();
+            sectionList.setTranslationY(sectionList.getTranslationY() + shift);
+            for (int i = 0; i < sectionList.getChildCount(); i++) {
+                View v = sectionList.getChildAt(i);
+                Integer top = before.get(v);
+                if (top == null) continue;
+                v.setTranslationY(top - v.getTop() - shift);
+                v.animate().translationY(0f).setStartDelay(0).setDuration(SECTION_MOVE_MS).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+            }
+            scrollTo(s, focused);
+        });
     }
+
+    private static final long SECTION_MOVE_MS = 320L;
 
     /** Runs once the sections are laid out again, when their tops are where scrollTo reads them. */
     private void afterLayout(Runnable then) {
