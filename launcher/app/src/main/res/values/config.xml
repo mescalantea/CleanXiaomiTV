@@ -12,10 +12,10 @@
 
     <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
     <string-array name="dock_apps">
+        <item>org.jellyfin.androidtv</item>
         <item>com.google.android.youtube.tv</item>
-        <item>net.mbc.shahidTV</item>
-        <item>com.nuvio.tv</item>
-        <item>com.sportzx.live</item>
+        <item>com.amazon.amazonvideo.livingroom</item>
+        <item>com.majnioui.tv.channels</item>
     </string-array>
 
     <!-- Apps never shown as tiles (e.g. the Live TV app, which the Inputs menu already covers). -->

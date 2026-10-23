@@ -1,4 +1,4 @@
-# My Xiaomi MiTV-MOOR2 (venom), Google TV / Android 11, firmware RTM5.220609.003.1300, 1.8 GB RAM.
+# My Xiaomi MiTV-MOOR2 (venom), Google TV / Android 11, firmware 2674, 1.8 GB RAM.
 # What I disabled on my TV; nothing is uninstalled, tools/restore.sh brings it all back.
 #
 # Apply:   TV_HOST=<tv ip> tools/disable.sh debloat.txt
@@ -30,6 +30,9 @@ fusion.android.tv.demo
 com.mitv.toolhouse
 com.xiaomo.tv.milegal
 android.autoinstalls.config.xiaomi.amelie
+com.xiaomi.mitv.manualhelp
+com.xiaomi.mitv.scenemode
+# com.xiaomi.mitv.mediaexplorer   # kept: the USB file and media browser
 
 # Mi Cast / Miracast (Chromecast kept)
 com.xiaomi.mitv.smartshare
