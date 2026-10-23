@@ -55,22 +55,22 @@ final class YouTubeCache {
         if (!tmp.renameTo(file)) Log.w(TAG, "could not save the cache");
     }
 
-    /** One line per video: id, published time, picture, title and channel, separated by tabs. */
+    /** One line per video: id, published time, picture, title, channel name and channel id, separated by tabs. */
     static void write(List<ShelfItem> items, Writer out) throws Exception {
         for (ShelfItem i : items) {
             out.write(i.id + '\t' + i.published + '\t' + (i.image == null ? "" : i.image) + '\t'
-                    + flat(i.title) + '\t' + flat(i.subtitle) + '\n');
+                    + flat(i.title) + '\t' + flat(i.subtitle) + '\t' + i.channel + '\n');
         }
     }
 
     static List<ShelfItem> read(BufferedReader in) throws Exception {
         List<ShelfItem> out = new ArrayList<>();
         for (String line; (line = in.readLine()) != null; ) {
-            String[] f = line.split("\t", 5);
+            String[] f = line.split("\t", 6);
             if (f.length < 5 || f[0].isEmpty()) continue;
             try {
                 out.add(new ShelfItem(ShelfItem.Source.YOUTUBE, f[0], f[3], f[4], f[2].isEmpty() ? null : f[2], -1,
-                        Long.parseLong(f[1])));
+                        Long.parseLong(f[1]), f.length > 5 ? f[5] : ""));
             } catch (NumberFormatException ignored) {
             }
         }

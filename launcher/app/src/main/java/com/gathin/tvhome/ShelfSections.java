@@ -7,13 +7,13 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The shelf's rows in a fixed order (resume, next up, YouTube), each section showing placeholder cards
- * while it loads with nothing to show yet, so results can arrive one source at a time without the others
- * moving.
+ * The shelf's rows in a fixed order (resume, next up, YouTube). A section that loads with nothing to show
+ * yet ends in placeholder cards until it is done, so results can arrive one source at a time, and YouTube
+ * feed by feed, without anything on screen moving.
  */
 final class ShelfSections {
     static final int RESUME = 0, NEXT_UP = 1, YOUTUBE = 2;
-    private static final int[] PLACEHOLDERS = {2, 2, 4};
+    private static final int[] PLACEHOLDERS = {2, 2, 3};
 
     @SuppressWarnings("unchecked")
     private final List<ShelfItem>[] items = new List[] {Collections.emptyList(), Collections.emptyList(), Collections.emptyList()};
@@ -30,6 +30,16 @@ final class ShelfSections {
         if (fresh != null) items[section] = fresh;
     }
 
+    /** Adds videos at the end of the section, which stays loading; see {@link YouTubeFeed#append}. */
+    void append(int section, List<ShelfItem> batch, int max) {
+        items[section] = YouTubeFeed.append(items[section], batch, max);
+    }
+
+    /** The section is done loading and keeps what it has. */
+    void finish(int section) {
+        loading[section] = false;
+    }
+
     void clear() {
         for (int i = 0; i < 3; i++) {
             items[i] = Collections.emptyList();
@@ -43,13 +53,11 @@ final class ShelfSections {
         Set<String> resumed = new HashSet<>();
         for (ShelfItem i : items[RESUME]) resumed.add(i.id);
         for (int s = 0; s < 3; s++) {
-            if (loading[s]) {
-                for (int n = 0; n < PLACEHOLDERS[s]; n++) {
-                    out.add(new ShelfItem(ShelfItem.Source.PLACEHOLDER, s + "-" + n, "", "", null, -1, 0));
-                }
-                continue;
-            }
             for (ShelfItem i : items[s]) if (s != NEXT_UP || !resumed.contains(i.id)) out.add(i);
+            if (!loading[s]) continue;
+            for (int n = 0; n < PLACEHOLDERS[s]; n++) {
+                out.add(new ShelfItem(ShelfItem.Source.PLACEHOLDER, s + "-" + n, "", "", null, -1, 0));
+            }
         }
         return out;
     }

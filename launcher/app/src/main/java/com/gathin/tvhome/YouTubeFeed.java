@@ -12,7 +12,9 @@ import java.net.URLEncoder;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -27,13 +29,14 @@ final class YouTubeFeed {
     }
 
     /**
-     * Newest first across the channels, at most max; a channel that fails or is too slow is skipped. Four
-     * feeds at a time and a minute in all, since a list of subscriptions can hold a hundred channels. Blocks.
-     * @param progress gets the newest so far each time a feed brings videos, on a worker thread; may be null
+     * Each channel's latest video, handed to batch as its feed completes, on a worker thread; a channel whose
+     * feed is empty, fails or is too slow is skipped. Eight feeds at a time and a minute in all, since
+     * a list of subscriptions can hold a few hundred channels. Returns every batch together, newest first.
+     * Blocks.
      */
-    static List<ShelfItem> fetch(List<String> channels, int max, Consumer<List<ShelfItem>> progress) {
+    static List<ShelfItem> fetch(List<String> channels, Consumer<List<ShelfItem>> batch) {
         List<ShelfItem> all = Collections.synchronizedList(new ArrayList<>());
-        ExecutorService pool = Executors.newFixedThreadPool(4);
+        ExecutorService pool = Executors.newFixedThreadPool(8);
         for (String channel : channels) pool.execute(() -> {
             try {
                 HttpURLConnection c = (HttpURLConnection) new URL("https://www.youtube.com/feeds/videos.xml?channel_id="
@@ -43,14 +46,10 @@ final class YouTubeFeed {
                 try (InputStream in = c.getInputStream()) {
                     XmlPullParser p = Xml.newPullParser();
                     p.setInput(in, "UTF-8");
-                    List<ShelfItem> videos = parse(p);
+                    List<ShelfItem> videos = latest(parse(p, channel));
                     if (!videos.isEmpty()) {
-                        List<ShelfItem> sofar;
-                        synchronized (all) {
-                            all.addAll(videos);
-                            sofar = newest(all, max);
-                        }
-                        if (progress != null) progress.accept(sofar);
+                        all.addAll(videos);
+                        batch.accept(videos);
                     }
                 } finally {
                     c.disconnect();
@@ -67,20 +66,56 @@ final class YouTubeFeed {
         }
         pool.shutdownNow();
         synchronized (all) {
-            return newest(all, max);
+            return newest(all);
         }
     }
 
-    static List<ShelfItem> newest(List<ShelfItem> items, int max) {
-        List<ShelfItem> sorted = new ArrayList<>(items);
-        sorted.sort((a, b) -> Long.compare(b.published, a.published));
-        return sorted.size() > max ? new ArrayList<>(sorted.subList(0, max)) : sorted;
+    /** The feed's newest video alone, or nothing for an empty feed. */
+    static List<ShelfItem> latest(List<ShelfItem> feed) {
+        List<ShelfItem> sorted = newest(feed);
+        return sorted.isEmpty() ? sorted : new ArrayList<>(sorted.subList(0, 1));
     }
 
-    /** The entries of one channel's Atom feed; an entry without a valid video id is skipped. */
+    /**
+     * shown with the new videos added at its end, at most max in all; a video, or another video of a channel
+     * already shown, is skipped, and nothing already shown moves.
+     */
+    static List<ShelfItem> append(List<ShelfItem> shown, List<ShelfItem> batch, int max) {
+        List<ShelfItem> out = new ArrayList<>(shown);
+        Set<String> ids = new HashSet<>(), channels = new HashSet<>();
+        for (ShelfItem i : shown) {
+            ids.add(i.id);
+            channels.add(channelKey(i));
+        }
+        for (ShelfItem i : batch) {
+            if (out.size() >= max) break;
+            if (ids.add(i.id) && channels.add(channelKey(i))) out.add(i);
+        }
+        return out;
+    }
+
+    /** The channel id; the channel name only for videos saved before ids were kept. */
+    private static String channelKey(ShelfItem i) {
+        return i.channel.isEmpty() ? "name:" + i.subtitle : i.channel;
+    }
+
+    static List<ShelfItem> newest(List<ShelfItem> items) {
+        List<ShelfItem> sorted = new ArrayList<>(items);
+        sorted.sort((a, b) -> Long.compare(b.published, a.published));
+        return sorted;
+    }
+
     static List<ShelfItem> parse(XmlPullParser p) throws Exception {
+        return parse(p, "");
+    }
+
+    /**
+     * The entries of one channel's Atom feed; an entry without a valid video id is skipped.
+     * @param channelId the channel the feed was asked for, used where an entry names none
+     */
+    static List<ShelfItem> parse(XmlPullParser p, String channelId) throws Exception {
         List<ShelfItem> out = new ArrayList<>();
-        String id = null, title = "", channel = "", published = "";
+        String id = null, title = "", channel = "", published = "", owner = channelId;
         boolean inEntry = false, inAuthor = false;
         for (int event = p.getEventType(); event != XmlPullParser.END_DOCUMENT; event = p.next()) {
             if (event == XmlPullParser.START_TAG) {
@@ -89,8 +124,11 @@ final class YouTubeFeed {
                     inEntry = true;
                     id = null;
                     title = channel = published = "";
+                    owner = channelId;
                 } else if (inEntry && name.equals("author")) {
                     inAuthor = true;
+                } else if (inEntry && name.equals("channelId")) {
+                    owner = p.nextText().trim();
                 } else if (inEntry && name.equals("videoId")) {
                     id = p.nextText().trim();
                 } else if (inEntry && name.equals("title") && !inAuthor) {
@@ -108,7 +146,7 @@ final class YouTubeFeed {
                     inEntry = false;
                     if (id != null && isVideoId(id)) {
                         out.add(new ShelfItem(ShelfItem.Source.YOUTUBE, id, title, channel,
-                                "https://i.ytimg.com/vi/" + id + "/mqdefault.jpg", -1, time(published)));
+                                "https://i.ytimg.com/vi/" + id + "/mqdefault.jpg", -1, time(published), owner));
                     }
                 }
             }

@@ -53,7 +53,8 @@ final class Shelf {
 
     private static final String TAG = "TvHome.Shelf";
     private static final long REFRESH_MS = 5 * 60_000L;
-    private static final int YOUTUBE_MAX = 10;
+    /** One video per subscribed channel; a safety cap for very long subscription lists. */
+    private static final int YOUTUBE_MAX = 300;
 
     private final Activity activity;
     private final RecyclerView list;
@@ -161,8 +162,6 @@ final class Shelf {
             sections.start(ShelfSections.NEXT_UP);
         }
         if (feeds) sections.start(ShelfSections.YOUTUBE);
-        // Saved videos stay until the new list is complete; without them, each feed shows as it comes in.
-        final boolean progressive = feeds && !hasYouTube();
         show();
         loading = true;
         final String episode = activity.getString(R.string.shelf_episode);
@@ -179,14 +178,19 @@ final class Shelf {
             if (feeds) {
                 List<String> channels = subscriptions
                         ? YouTubeSubscriptions.merge(fixed, YouTubeSubscriptions.channels(activity, youtubeKey, person)) : fixed;
-                List<ShelfItem> videos = YouTubeFeed.fetch(channels, YOUTUBE_MAX,
-                        progressive ? sofar -> post(gen, ShelfSections.YOUTUBE, sofar) : null);
-                if (!videos.isEmpty()) YouTubeCache.save(cache, videos);
+                // Videos only ever join at the end, so nothing moves under the user while feeds arrive.
+                List<ShelfItem> videos = YouTubeFeed.fetch(channels, batch -> handler.post(() -> {
+                    if (gen != generation) return;
+                    sections.append(ShelfSections.YOUTUBE, batch, YOUTUBE_MAX);
+                    show();
+                }));
                 long at = System.currentTimeMillis();
+                // Newest first for the next start; this session keeps its order.
+                if (!videos.isEmpty()) YouTubeCache.save(cache, YouTubeFeed.append(Collections.emptyList(), videos, YOUTUBE_MAX));
                 handler.post(() -> {
                     if (gen != generation) return;
                     if (!videos.isEmpty()) youtubeAt = at;
-                    sections.set(ShelfSections.YOUTUBE, videos.isEmpty() ? null : videos);
+                    sections.finish(ShelfSections.YOUTUBE);
                     show();
                 });
             }
@@ -202,11 +206,6 @@ final class Shelf {
         String key = ShelfSections.key(item);
         for (ShelfItem i : fresh) if (ShelfSections.key(i).equals(key)) return false;
         return true;
-    }
-
-    private boolean hasYouTube() {
-        for (ShelfItem i : items) if (i.source == ShelfItem.Source.YOUTUBE) return true;
-        return false;
     }
 
     private interface Fetch {

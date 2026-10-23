@@ -16,7 +16,7 @@ public class ShelfSectionsTest {
     }
 
     private static ShelfItem yt(String id) {
-        return new ShelfItem(ShelfItem.Source.YOUTUBE, id, id, "", null, -1, 0);
+        return new ShelfItem(ShelfItem.Source.YOUTUBE, id, id, "channel " + id, null, -1, 0);
     }
 
     private static String ids(List<ShelfItem> rows) {
@@ -31,13 +31,35 @@ public class ShelfSectionsTest {
         s.start(ShelfSections.RESUME);
         s.start(ShelfSections.NEXT_UP);
         s.start(ShelfSections.YOUTUBE);
-        assertEquals("_ _ _ _ _ _ _ _", ids(s.rows()));
+        assertEquals("_ _ _ _ _ _ _", ids(s.rows()));
         s.set(ShelfSections.NEXT_UP, Arrays.asList(jf("n1")));
-        assertEquals("_ _ n1 _ _ _ _", ids(s.rows()));
+        assertEquals("_ _ n1 _ _ _", ids(s.rows()));
         s.set(ShelfSections.RESUME, Arrays.asList(jf("r1"), jf("n1")));
-        assertEquals("r1 n1 _ _ _ _", ids(s.rows()));
-        s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("v1")));
-        assertEquals("r1 n1 v1", ids(s.rows()));
+        assertEquals("r1 n1 _ _ _", ids(s.rows()));
+    }
+
+    @Test
+    public void youtubeFeedsJoinAtTheEndAheadOfThePlaceholdersUntilDone() {
+        ShelfSections s = new ShelfSections();
+        s.set(ShelfSections.RESUME, Arrays.asList(jf("r1")));
+        s.start(ShelfSections.YOUTUBE);
+        s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("v2")), 300);
+        assertEquals("r1 v2 _ _ _", ids(s.rows()));
+        s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("v1"), yt("v2")), 300);
+        assertEquals("r1 v2 v1 _ _ _", ids(s.rows()));
+        s.finish(ShelfSections.YOUTUBE);
+        assertEquals("r1 v2 v1", ids(s.rows()));
+    }
+
+    @Test
+    public void aRefreshOverTheCacheOnlyAppends() {
+        ShelfSections s = new ShelfSections();
+        s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("old")));
+        s.start(ShelfSections.YOUTUBE);
+        assertEquals("old", ids(s.rows()));
+        s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("new")), 300);
+        s.finish(ShelfSections.YOUTUBE);
+        assertEquals("old new", ids(s.rows()));
     }
 
     @Test

@@ -16,8 +16,15 @@ final class ShelfItem {
     final int progress;
     /** Publication time in ms (YouTube), 0 when unknown. */
     final long published;
+    /** The YouTube channel id, or empty. */
+    final String channel;
 
     ShelfItem(Source source, String id, String title, String subtitle, String image, int progress, long published) {
+        this(source, id, title, subtitle, image, progress, published, "");
+    }
+
+    ShelfItem(Source source, String id, String title, String subtitle, String image, int progress, long published,
+              String channel) {
         this.source = source;
         this.id = id;
         this.title = title;
@@ -25,5 +32,6 @@ final class ShelfItem {
         this.image = image;
         this.progress = progress;
         this.published = published;
+        this.channel = channel;
     }
 }
