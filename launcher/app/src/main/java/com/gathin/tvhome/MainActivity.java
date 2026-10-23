@@ -83,7 +83,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Section keys, saved in this order (Config.sectionOrder). */
     static final String SECTION_YOUTUBE = "youtube", SECTION_TV = "tv", SECTION_JELLYFIN = "jellyfin", SECTION_APPS = "apps";
     /** Where the focused section's top sits, as a share of the screen's height. */
-    private static final float ANCHOR = 0.52f;
+    private static final float ANCHOR = 0.56f;
     private static final long MINUTE_MS = 60_000L;
     private static final long WEATHER_MS = 30 * MINUTE_MS;
     private String liveTvPkg;
@@ -110,6 +110,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Home's sections, in the owner's order. */
     private final List<Section> sections = new ArrayList<>();
     private LinearLayout sectionList;
+    /** Home was pressed in another app: the first card gets focus when Home shows. */
+    private boolean homePressed;
     /** The section being moved (hold OK on one of its cards), or null. */
     private Section moving;
     private View hero, heroImage, heroScrim;
@@ -442,15 +444,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        // Home pressed while already on Home: back to the first card of the first section, everything at its start.
-        if (!hasWindowFocus() || !Intent.ACTION_MAIN.equals(intent.getAction())) return;
+        // Home pressed (on Home or in another app): back to the first card of the first section, everything at its
+        // start. Coming back with Back keeps the card the user left from.
+        if (!Intent.ACTION_MAIN.equals(intent.getAction())) return;
         if (openPopup != null) openPopup.dismiss();
         finishReorder();
         endSectionMove();
         shelf.toStart();
         lastFocused = 0;
         lastFocusedKey = adapter.keyAt(0);
-        focusFirstSection();
+        if (hasWindowFocus()) focusFirstSection();
+        else homePressed = true;
     }
 
     @Override
@@ -473,6 +477,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             default:
                 // Back from a side panel (Wi-Fi, Inputs): Home never left the screen, nothing to redo.
                 break;
+        }
+        if (homePressed) {
+            homePressed = false;
+            sectionList.post(this::focusFirstSection);
         }
         updateGreeting();
         updateWifiLabel();
@@ -1300,7 +1308,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View panel = getLayoutInflater().inflate(R.layout.popup_settings, root, false);
         ((TextView) ((ViewGroup) panel).getChildAt(0)).setText(R.string.profiles);
         LinearLayout rows = panel.findViewById(R.id.rows);
-        final PopupWindow popup = menuPopup(panel, (int) (200 * density));
+        final PopupWindow popup = menuPopup(panel, (int) (280 * density));
         String current = currentProfile;
         View currentRow = null;
         int size = Math.round(24 * density);
@@ -1321,16 +1329,91 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             row.setOnClickListener(v -> {
                 popup.dismiss();
                 if (chosen) return;
-                Config.chooseProfile(this, p.name);
-                showProfile(button, p);
-                Toast.makeText(this, displayName(p), Toast.LENGTH_SHORT).show();
-                shelf.use(p);
+                // A protected profile asks for its PIN or code first.
+                unlock(p, () -> {
+                    Config.chooseProfile(this, p.name);
+                    showProfile(button, p);
+                    Toast.makeText(this, displayName(p), Toast.LENGTH_SHORT).show();
+                    shelf.use(p);
+                });
             });
             row.setOnKeyListener((v, keyCode, event) -> keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT);
             rows.addView(row);
             if (chosen) currentRow = row;
         }
+        addSeparator(rows);
+        addSettingsRow(rows, popup, R.drawable.ic_lock, R.string.lock_settings, 0);
+        rows.getChildAt(rows.getChildCount() - 1).setOnClickListener(v -> {
+            popup.dismiss();
+            Config.Profile me = cfg.profile(current);
+            unlock(me, () -> showLockOptions(me));
+        });
         dropIn(popup, panel, button, Gravity.START);
+        (currentRow != null ? currentRow : rows.getChildAt(0)).requestFocus();
+    }
+
+    /** Wrong answers per profile; static so a rebuilt Home keeps counting. */
+    private static final java.util.Map<String, ProfileLock.Attempts> attempts = new java.util.HashMap<>();
+
+    private ProfileLock.Attempts attemptsFor(String profile) {
+        ProfileLock.Attempts a = attempts.get(profile);
+        if (a == null) attempts.put(profile, a = new ProfileLock.Attempts());
+        return a;
+    }
+
+    /** Runs then once the profile's PIN or code is given, or at once when it has no lock. */
+    private void unlock(Config.Profile p, Runnable then) {
+        String mode = ProfileLock.mode(this, p.name);
+        if (ProfileLock.NONE.equals(mode)) {
+            then.run();
+            return;
+        }
+        boolean pin = ProfileLock.PIN.equals(mode);
+        LockDialog.ask(this, getString(pin ? R.string.lock_enter_pin : R.string.lock_enter_code, displayName(p)), null, null,
+                pin ? ProfileLock.PIN_LENGTH : ProfileLock.CODE_LENGTH, attemptsFor(p.name),
+                answer -> ProfileLock.check(this, p.name, answer), answer -> then.run());
+    }
+
+    /** The current profile's lock: none, a PIN, or a code from an authenticator app on the phone. */
+    private void showLockOptions(Config.Profile p) {
+        View panel = getLayoutInflater().inflate(R.layout.popup_settings, root, false);
+        ((TextView) ((ViewGroup) panel).getChildAt(0)).setText(R.string.lock_settings);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        final PopupWindow popup = menuPopup(panel, (int) (240 * density));
+        String mode = ProfileLock.mode(this, p.name);
+        int[] labels = {R.string.lock_none, R.string.lock_pin, R.string.lock_totp};
+        String[] modes = {ProfileLock.NONE, ProfileLock.PIN, ProfileLock.TOTP};
+        View currentRow = null;
+        for (int i = 0; i < labels.length; i++) {
+            final String choice = modes[i];
+            addSettingsRow(rows, popup, R.drawable.ic_lock, labels[i], 0);
+            View row = rows.getChildAt(rows.getChildCount() - 1);
+            row.findViewById(R.id.dot).setVisibility(choice.equals(mode) ? View.VISIBLE : View.INVISIBLE);
+            if (choice.equals(mode)) currentRow = row;
+            row.setOnClickListener(v -> {
+                popup.dismiss();
+                if (ProfileLock.NONE.equals(choice)) {
+                    ProfileLock.clear(this, p.name);
+                    Toast.makeText(this, R.string.lock_saved, Toast.LENGTH_SHORT).show();
+                } else if (ProfileLock.PIN.equals(choice)) {
+                    LockDialog.ask(this, getString(R.string.lock_new_pin), null, null, ProfileLock.PIN_LENGTH,
+                            new ProfileLock.Attempts(), any -> true, first -> LockDialog.ask(this, getString(R.string.lock_repeat_pin),
+                                    null, null, ProfileLock.PIN_LENGTH, new ProfileLock.Attempts(), first::equals, pin -> {
+                                        ProfileLock.setPin(this, p.name, pin);
+                                        Toast.makeText(this, R.string.lock_saved, Toast.LENGTH_SHORT).show();
+                                    }));
+                } else {
+                    String secret = ProfileLock.newSecret();
+                    LockDialog.ask(this, getString(R.string.lock_scan), ProfileLock.otpauth(secret, displayName(p)),
+                            getString(R.string.lock_secret, secret.replaceAll("(.{4})", "$1 ").trim()), ProfileLock.CODE_LENGTH,
+                            new ProfileLock.Attempts(), code -> ProfileLock.checkCode(secret, code, System.currentTimeMillis()), code -> {
+                                ProfileLock.setTotp(this, p.name, secret);
+                                Toast.makeText(this, R.string.lock_saved, Toast.LENGTH_SHORT).show();
+                            });
+                }
+            });
+        }
+        dropIn(popup, panel, findViewById(R.id.btnProfile), Gravity.START);
         (currentRow != null ? currentRow : rows.getChildAt(0)).requestFocus();
     }
 

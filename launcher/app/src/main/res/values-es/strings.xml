@@ -42,4 +42,17 @@
     <string name="section_move_hint">MOVER SECCIÓN  •  ARRIBA / ABAJO  •  OK / ATRÁS LISTO</string>
     <string name="hero_now">ahora</string>
     <string name="shelf_new">NUEVO</string>
+    <string name="lock_settings">Seguridad del perfil</string>
+    <string name="lock_none">Sin protección</string>
+    <string name="lock_pin">PIN</string>
+    <string name="lock_totp">Código del móvil</string>
+    <string name="lock_enter_pin">Introduce el PIN de %1$s</string>
+    <string name="lock_enter_code">Introduce el código de tu app de autenticación para %1$s</string>
+    <string name="lock_new_pin">Elige un PIN de 4 cifras</string>
+    <string name="lock_repeat_pin">Vuelve a introducir el PIN</string>
+    <string name="lock_scan">Escanéalo con tu app de autenticación e introduce el código que muestra</string>
+    <string name="lock_secret">O añádelo a mano: %1$s</string>
+    <string name="lock_wrong">No es correcto, inténtalo de nuevo</string>
+    <string name="lock_wait">Demasiados intentos. Espera %1$d s</string>
+    <string name="lock_saved">Seguridad del perfil guardada</string>
 </resources>

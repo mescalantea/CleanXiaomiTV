@@ -42,4 +42,17 @@
     <string name="section_move_hint">MOVE SECTION  •  UP / DOWN  •  OK / BACK DONE</string>
     <string name="hero_now">now</string>
     <string name="shelf_new">NEW</string>
+    <string name="lock_settings">Profile security</string>
+    <string name="lock_none">No protection</string>
+    <string name="lock_pin">PIN</string>
+    <string name="lock_totp">Code from your phone</string>
+    <string name="lock_enter_pin">Enter the PIN for %1$s</string>
+    <string name="lock_enter_code">Enter the code from your authenticator app for %1$s</string>
+    <string name="lock_new_pin">Choose a 4-digit PIN</string>
+    <string name="lock_repeat_pin">Enter the PIN again</string>
+    <string name="lock_scan">Scan this with your authenticator app, then enter the code it shows</string>
+    <string name="lock_secret">Or add it by hand: %1$s</string>
+    <string name="lock_wrong">That\'s not it, try again</string>
+    <string name="lock_wait">Too many tries. Wait %1$d s</string>
+    <string name="lock_saved">Profile security saved</string>
 </resources>

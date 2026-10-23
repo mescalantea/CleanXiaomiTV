@@ -67,6 +67,8 @@ TV_HOST=<tv-ip> tools/theme.sh --private themes/private/private.json
 
 Run it once per TV, with that TV's IP. If more than one person uses the TV, list them under `profiles`: Home then gets a round button with the current person's picture (their Jellyfin avatar, an optional `photo` URL, or their initial), and OK on it switches the shelf to the next person's Jellyfin items and channels. With a `youtube_api_key` and a person's `youtube_channel_id`, the shelf also follows the channels that person subscribes to, as long as their subscriptions are public (see [`themes/README.md`](themes/README.md#private-values)). `tools/theme.sh --reset` leaves `private.json` in place.
 
+Each profile can be locked on the TV itself: open the profile button, then **Seguridad del perfil** (Profile security), and choose no protection, a 4-digit PIN, or a code from an authenticator app on the phone (scan the QR code it shows, then type one code to confirm). Switching into a locked profile then asks for it; the profile in use at start-up doesn't. The PIN is kept as a salted hash and the authenticator secret in the launcher's private storage, never in `private.json`. It is a household convenience, not security: anyone with ADB or the TV's settings can remove every lock by clearing the launcher's data (`adb shell pm clear com.majnioui.cleanxiaomitv`, which also resets the app order and the saved profile).
+
 ## Undo
 
 ```bash
