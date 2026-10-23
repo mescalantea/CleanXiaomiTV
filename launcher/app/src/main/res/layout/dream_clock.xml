@@ -170,7 +170,7 @@
             android:letterSpacing="0.14"
             android:textAllCaps="true" />
 
-        <!-- Weather ("23°  ·  Casablanca"), from the home screen's weather settings. -->
+        <!-- Weather ("23°  ·  Madrid"), from the home screen's weather settings. -->
         <TextView
             android:id="@+id/dreamWeather"
             android:layout_width="wrap_content"

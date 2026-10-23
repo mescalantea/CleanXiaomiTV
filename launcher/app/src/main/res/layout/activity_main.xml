@@ -127,7 +127,7 @@
                         android:layout_marginBottom="9dp"
                         android:orientation="vertical">
 
-                        <!-- Weather ("☀️ 22° · Casablanca"), shown once it has loaded. -->
+                        <!-- Weather ("☀️ 22° · Madrid"), shown once it has loaded. -->
                         <TextView
                             android:id="@+id/weather"
                             android:gravity="left"

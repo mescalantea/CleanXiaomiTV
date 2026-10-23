@@ -33,12 +33,7 @@ is ignored, and a file that doesn't parse is ignored as a whole, so a theme can 
 | `rows_below_dock` | 0 to 3 | Grid rows left visible under the dock |
 | `dock_opacity` | 0 to 100 | How opaque the dock band's glass is over the photo or wallpaper: 100 is the solid frosted band, lower shows more of the picture (55 by default) |
 | `advanced_effects` | bool | The focused tile lifts with a shadow, zooms a little more, its picture zooms and it gets a bright edge; the top buttons zoom on focus and apps open with a soft transition (`false` by default) |
-| `shamsi_date` | bool | Show the Solar Hijri date above the Gregorian one |
-| `dream_athkar` | bool | Adhkar at the bottom of the Clock screensaver, a new one every minute |
-| `home_prayer` | bool | Next prayer and a countdown in a glass pill under the clock, at the weather coordinates (Aladhan) |
 | `dream_analog` | bool | An analog clock on the Clock screensaver instead of the digital one |
-| `dream_prayer` | bool | Today's prayer times on the Clock screensaver, the next one lit |
-| `prayer_method` | number | Aladhan calculation method, e.g. 21 Morocco, 3 Muslim World League, 2 ISNA |
 | `dream_photos` | bool | Photos of the day (Bing) behind the Clock screensaver, a new one every 3 minutes |
 | `now_playing` | bool | The song a music app is playing: a pill on the home screen and a panel on the screensaver |
 | `module_cards` | bool | Look for module cards and ask about them (`true`); `false` turns the feature off |
