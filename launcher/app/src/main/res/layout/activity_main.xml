@@ -36,6 +36,41 @@
         android:includeFontPadding="false"
         android:singleLine="true" />
 
+    <!-- "For you": Jellyfin and YouTube posters above the hero name, positioned in code (Shelf). -->
+    <LinearLayout
+        android:id="@+id/shelf"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="56dp"
+        android:paddingEnd="56dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="@string/shelf_title"
+            android:textColor="#B3FFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="@font/outfit"
+            android:fontVariationSettings="'wght' 500"
+            android:letterSpacing="0.06"
+            android:textAllCaps="true"
+            android:includeFontPadding="false" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/shelfList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
+            android:clipToPadding="false"
+            android:clipChildren="false"
+            android:overScrollMode="never"
+            android:scrollbars="none" />
+    </LinearLayout>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"

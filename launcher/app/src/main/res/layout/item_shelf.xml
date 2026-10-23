@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="7dp"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <FrameLayout
+        android:id="@+id/shelfCard"
+        android:layout_width="160dp"
+        android:layout_height="90dp"
+        android:background="@drawable/shelf_card"
+        android:foreground="@drawable/shelf_focus"
+        android:focusable="true"
+        android:clickable="true">
+
+        <ImageView
+            android:id="@+id/shelfImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_gravity="bottom"
+            android:background="@drawable/shelf_scrim" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="7dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/shelfTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:textColor="#FFFFFFFF"
+                android:textSize="12sp"
+                android:fontFamily="@font/outfit"
+                android:fontVariationSettings="'wght' 500"
+                android:includeFontPadding="false" />
+
+            <TextView
+                android:id="@+id/shelfSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:textColor="#B3FFFFFF"
+                android:textSize="10sp"
+                android:fontFamily="@font/outfit"
+                android:fontVariationSettings="'wght' 400"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <View
+            android:id="@+id/shelfProgress"
+            android:layout_width="0dp"
+            android:layout_height="3dp"
+            android:layout_gravity="bottom|start"
+            android:background="#FFE5484D" />
+    </FrameLayout>
+</FrameLayout>

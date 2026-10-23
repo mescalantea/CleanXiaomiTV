@@ -20,4 +20,6 @@
     <string name="cant_open">No se puede abrir %1$s</string>
     <string name="date_format">EEEE d \'de\' MMMM</string>
     <string name="dream_name">Reloj</string>
+    <string name="shelf_title">Para ti</string>
+    <string name="shelf_episode" formatted="false">T%1$dE%2$d</string>
 </resources>

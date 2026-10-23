@@ -105,6 +105,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private View btnInputs;
     /** Null when now_playing is off. */
     private NowPlayingCard nowCard;
+    private Shelf shelf;
+    private View shelfView;
+    /** Where the hero name sits (root coordinates); the shelf goes above it. */
+    private float heroY;
     /** The blurred picture behind the glass (photo of the day or a theme's wallpaper). */
     private final Backdrop backdrop = new Backdrop();
     private boolean homePhotoOn;
@@ -384,7 +388,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
                         @Override
                         public void down() {
-                            focusTile(lastFocused % COLUMNS);
+                            if (shelfShowing()) shelf.focus();
+                            else focusTile(lastFocused % COLUMNS);
                         }
                     });
             FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -393,6 +398,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             nowPlaying = new NowPlaying(this, handler, this::showNowPlaying);
         }
         btnSettings.setOnClickListener(v -> showSettingsMenu());
+        shelfView = findViewById(R.id.shelf);
+        shelf = new Shelf(this, findViewById(R.id.shelfList), cfg, new Shelf.Exits() {
+            @Override
+            public void up() {
+                if (cardShowing()) nowCard.defaultButton().requestFocus();
+                else btnSettings.requestFocus();
+            }
+
+            @Override
+            public void down() {
+                focusTile(lastFocused % COLUMNS);
+            }
+
+            @Override
+            public void changed() {
+                updateShelf();
+            }
+        });
 
         // Keep focus on the top bar at its ends and at the top: Android's focus finder would otherwise
         // jump to a tile far below when there is nothing in that direction.
@@ -403,6 +426,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // The now playing card when it shows, else back to the dock tile Up came from, not
                 // wherever the focus finder lands.
                 if (cardShowing()) nowCard.defaultButton().requestFocus();
+                else if (shelfShowing()) shelf.focus();
                 else focusTile(lastFocused % COLUMNS);
                 return true;
             }
@@ -514,6 +538,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (nowPlaying != null) nowPlaying.start();
         if (homePhotoOn) loadHomePhoto();
+        shelf.refresh();
     }
 
     /** Rebuilds the tiles, then puts focus back where it was. */
@@ -609,6 +634,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        shelf.stop();
         unregisterReceiver(packageReceiver);
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
@@ -710,6 +736,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
         float y = dockTopInRoot - DockDecoration.PAD_Y * density - 26 * density - heroName.getHeight();
+        heroY = y;
         boolean changed = !label.contentEquals(heroName.getText());
 
         if (!heroShown) {
@@ -722,6 +749,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             setAmbient(color);
             ambient.animate().alpha(1f).setDuration(600).start();
             heroShown = true;
+            updateShelf();
         } else if (changed) {
             heroName.animate().alpha(0f).translationX(-12 * density).setDuration(120).withEndAction(() -> {
                 heroName.setText(label);
@@ -805,6 +833,41 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroName.animate().alpha(0f).setDuration(260).setInterpolator(GLIDE).start();
         findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(260).start();
         ambient.animate().alpha(0f).setDuration(600).setInterpolator(GLIDE).start();
+        updateShelf();
+    }
+
+    /** The shelf shows with the dock (like the hero name) while it has items and fits under the clock. */
+    private void updateShelf() {
+        if (shelf.hasItems() && heroShown) {
+            if (shelfView.getVisibility() != View.VISIBLE) {
+                shelfView.setAlpha(0f);
+                shelfView.setVisibility(View.VISIBLE);
+            }
+            shelfView.post(this::placeShelf);
+        } else if (shelfView.getVisibility() == View.VISIBLE) {
+            if (shelfView.hasFocus()) focusTile(lastFocused % COLUMNS);
+            shelfView.animate().alpha(0f).setDuration(260).withEndAction(() -> {
+                if (!heroShown || !shelf.hasItems()) shelfView.setVisibility(View.INVISIBLE);
+            }).start();
+        }
+    }
+
+    private void placeShelf() {
+        if (!heroShown || !shelf.hasItems()) return;
+        View header = findViewById(R.id.leftBlock);
+        Rect r = new Rect(0, 0, header.getWidth(), header.getHeight());
+        root.offsetDescendantRectToMyCoords(header, r);
+        float top = heroY - shelfView.getHeight();
+        if (top < r.bottom) {
+            shelfView.setVisibility(View.INVISIBLE);
+            return;
+        }
+        shelfView.setY(top);
+        shelfView.animate().alpha(1f).setDuration(260).start();
+    }
+
+    private boolean shelfShowing() {
+        return shelfView != null && shelfView.getVisibility() == View.VISIBLE;
     }
 
     private void hideGlass() {
@@ -855,6 +918,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return col == width - 1 || position == count - 1;
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            if (dock && shelfShowing()) {                  // dock row: the shelf above it
+                shelf.focus();
+                return true;
+            }
             if (dock && cardShowing()) {                   // dock row: the now playing card above it
                 nowCard.defaultButton().requestFocus();
                 return true;
