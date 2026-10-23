@@ -2,7 +2,7 @@
 
 <p align="center">My Xiaomi TV, minus the ads: a clean home screen, a richer screensaver and live channels.</p>
 
-![The home screen: today's photo, the next prayer under the clock, the song playing under the glass buttons, and the dock](docs/screenshot-home.png)
+![The home screen: today's photo, the clock and weather, the song playing under the top buttons, and the apps](docs/screenshot-home.png)
 
 <table>
   <tr>
@@ -21,13 +21,12 @@
 
 ## What it does
 
-- **Debloat**: [`debloat.txt`](debloat.txt) disables 37 packages: Xiaomi and Google telemetry, PatchWall and the ad rows, demo mode, duplicate cast services, preloaded apps and unused system leftovers. Nothing is uninstalled, and one command restores everything.
+- **Debloat**: [`debloat.txt`](debloat.txt) disables 38 packages: Xiaomi and Google telemetry, PatchWall and the ad rows, demo mode, duplicate cast services, preloaded apps and unused system leftovers. Nothing is uninstalled, and one command restores everything.
 - **Ad-blocking DNS**: the installer points the TV's Private DNS at [AdGuard](https://adguard-dns.io), so ads and trackers are blocked in every app.
-- **Home screen**: today's photo of the day behind everything, with liquid glass buttons, dock and menus over it; the weather next to the clock and the next prayer with a countdown under it; a dock of four apps and five smaller tiles per row below it, out of sight until you press Down. Hold OK on a tile to move it. English and Arabic.
-- **Now playing**: while Spotify or another music app plays, a slim glass pill under the top buttons with the cover, song, artist and previous / play-pause / next, tinted in the cover's colour. Hold OK on it to open the app.
-- **Screensaver**: photos of the day with a slow zoom, the time, weather and today's prayer times top left, the song playing bottom left, and a thikr with its source bottom right, a new one every minute.
-- **Your choice**: prayer times on Home, prayer times on the screensaver and athkar can each be switched On or Off from the Settings button, no rebuild needed.
-- **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search), **Prayer Times** (Morocco method, countdown to the next prayer) and **Channels** (35 live Moroccan and Arab channels from free streams the broadcasters publish). They show up on the home screen as cards.
+- **Home screen**, Google TV style: the clock, weather and top buttons, a hero with the focused card's title, where it comes from, a few words about it and its picture, and titled sections under it: **YouTube** (the latest video of each channel you follow), **En directo** (your favourite live channels with what is on now, then the coming big sports events on free channels, both from the Channels app's guide), **Seguir viendo** (continue watching, next up and new episodes on your Jellyfin server) and **Aplicaciones** (every app, in a grid). Hold OK on a card to move its section up or down; hold OK on an app to move the app. The focused card zooms a little with a white outline; sections with nothing to show are hidden.
+- **Now playing**: while Spotify or another music app plays, a slim pill under the top buttons with the cover, song, artist and previous / play-pause / next, tinted in the cover's colour. Hold OK on it to open the app.
+- **Screensaver**: photos of the day with a slow zoom, the time and weather top left, and the song playing bottom left.
+- **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search) and **Channels** (Spanish and international live channels from [TDTChannels](https://www.tdtchannels.com)' public list of free streams).
 
 ## Install
 
@@ -43,7 +42,7 @@ tools/disable.sh debloat.txt                     # debloat
 INPUT_KEY_SERVICE=1 launcher/build-and-install.sh   # the launcher, made the default home
 
 cd modules && ./gradlew assembleRelease && cd ..   # the apps
-for m in weather prayer channels; do
+for m in weather channels; do
   tools/venv/bin/python -I tools/b64push.py modules/$m/build/outputs/apk/release/$m-release.apk /data/local/tmp/$m.apk
   tools/venv/bin/python -I tools/tv.py "pm install -r /data/local/tmp/$m.apk; rm -f /data/local/tmp/$m.apk"
 done
@@ -52,11 +51,23 @@ done
 tools/venv/bin/python -I tools/tv.py 'settings put secure screensaver_components com.majnioui.cleanxiaomitv/com.gathin.tvhome.ClockDream; settings put secure screensaver_enabled 1'
 ```
 
-`INPUT_KEY_SERVICE=1` keeps the remote's Input button working once the stock home is gone, and on Xiaomi remotes the YouTube and Apps buttons too; Android switches it off on every reinstall, so pass it each time. `PRIVATE_DNS=off` skips the AdGuard DNS.
+`INPUT_KEY_SERVICE=1` keeps the remote's Input button working once the stock home is gone, and on Xiaomi remotes the YouTube and Apps buttons too; Android switches it off on every reinstall, a plain `adb install -r` included, so pass it each time (after installing by hand, run the script again with it). `tools/theme.sh` no longer restarts the launcher to apply a theme or `private.json`: Home picks the new files up when it comes to the front, so the service stays on. By default the script sets the TV's Private DNS to AdGuard; `PRIVATE_DNS=off` leaves the TV's DNS setting as it is, it doesn't turn Private DNS off. To turn it off, for example when your Jellyfin server's public name has to resolve to your router from inside your network, run `tools/venv/bin/python -I tools/tv.py 'settings put global private_dns_mode off'`. The script also turns Location on, which Android needs before it tells the launcher the Wi-Fi network's name (see [TROUBLESHOOTING](docs/TROUBLESHOOTING.md)).
 
 ## Configure
 
-Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the dock apps, hidden apps, the weather city (Casablanca by default), `grid_columns`, and switches for each feature (`home_photo`, `dream_photos`, `dream_athkar`, `home_prayer`, `dream_prayer`, `now_playing`). The athkar and prayer-time switches can also be flipped on the TV: Settings pill, then the On/Off rows at the bottom; that choice wins over `config.xml` and a theme. Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
+Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the apps first in the grid (`dock_apps`, until you reorder them on the TV), hidden apps, the weather city (Madrid by default), `grid_columns`, and switches for each feature (`home_photo`, `dream_photos`, `dream_analog`, `now_playing`). The analog clock switch can also be flipped on the TV: Settings pill, then the On/Off row at the bottom; that choice wins over `config.xml` and a theme. Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
+
+### Your own values
+
+The Jellyfin server, its API key and your user id, the YouTube channels for the shelf and your weather location stay out of the repo, in a `private.json` on each TV. Copy [`themes/private.example/private.json`](themes/private.example/private.json) to `themes/private/private.json` (ignored by git), fill it in and push it to every TV:
+
+```bash
+TV_HOST=<tv-ip> tools/theme.sh --private themes/private/private.json
+```
+
+Run it once per TV, with that TV's IP. If more than one person uses the TV, list them under `profiles`: Home then gets a round button with the current person's picture (their Jellyfin avatar, an optional `photo` URL, or their initial), and OK on it opens the list of people: picking one switches the shelf to their Jellyfin items, YouTube channels and live TV channels (`tv_channels`, added to the shared ones). With a `youtube_api_key` and a person's `youtube_channel_id`, the shelf also follows the channels that person subscribes to, as long as their subscriptions are public (see [`themes/README.md`](themes/README.md#private-values)). `tools/theme.sh --reset` leaves `private.json` in place.
+
+Each profile can be locked on the TV itself: open the profile button, then **Seguridad del perfil** (Profile security), and choose no protection, a 4-digit PIN, or a code from an authenticator app on the phone (scan the QR code it shows, then type one code to confirm). Switching into a locked profile then asks for it; the profile in use at start-up doesn't. The PIN is kept as a salted hash and the authenticator secret in the launcher's private storage, never in `private.json`. It is a household convenience, not security: anyone with ADB or the TV's settings can remove every lock by clearing the launcher's data (`adb shell pm clear com.majnioui.cleanxiaomitv`, which also resets the app order and the saved profile).
 
 ## Undo
 
@@ -70,8 +81,9 @@ This re-enables every package in the list, gives Home back to the stock Google T
 
 No analytics and no accounts. The only requests the TV makes for these features go to:
 [Open-Meteo](https://open-meteo.com) for the weather (only the city's coordinates), Bing's photo of the day
-archive for the home screen and the screensaver, [Aladhan](https://aladhan.com) for prayer times, [iptv-org](https://github.com/iptv-org/iptv)'s
-public lists and the broadcasters' own streams for Channels, and AdGuard as the DNS resolver. Each can be
+archive for the home screen and the screensaver, your own Jellyfin server and YouTube's public channel feeds for the
+shelf (only when you set them up), [TDTChannels](https://www.tdtchannels.com)' public list and programme guide and the broadcasters' own
+streams for Channels, and AdGuard as the DNS resolver. Each can be
 switched off in `config.xml` (or by not installing that app).
 
 ## Credits

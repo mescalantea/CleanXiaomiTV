@@ -4,7 +4,6 @@
     <string name="inputs">Источники</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Настройки</string>
-    <string name="choose_input">Источники</string>
     <string name="connected">Подключено</string>
     <string name="standby">Ожидание</string>
     <string name="not_connected">Нет устройства</string>
@@ -24,6 +23,4 @@
     <string name="home_settings">Главный экран по умолчанию</string>
     <string name="home_settings_help">Выберите главный экран в системных настройках, затем нажмите кнопку «Домой».</string>
     <string name="input_key_service_description">Открывает список источников при нажатии кнопки выбора источника на пульте.</string>
-    <string name="home_key_name">Кнопка «Домой»</string>
-    <string name="home_key_description">Кнопка «Домой» на пульте открывает этот главный экран.</string>
 </resources>

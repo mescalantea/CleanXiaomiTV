@@ -1,6 +1,5 @@
 {
-  "columns": 6,
-  "rows_below_dock": 1,
+  "grid_columns": 6,
   "background_color": "#000000",
   "wallpaper": false
 }

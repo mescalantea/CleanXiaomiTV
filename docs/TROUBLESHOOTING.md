@@ -54,7 +54,10 @@ Things that bit us or contributors, so they don't bite you. Commands use `tools/
   setupwraith's components is refused with a SecurityException. Disabling the whole
   `com.google.android.tungsten.setupwraith` package is what frees the slot. It is the first-run
   setup wizard, so everyday use is unaffected, but re-enable it before a factory reset - list it in
-  your `debloat.txt` and `tools/restore.sh` does that for you.
+  your `debloat.txt` and `tools/restore.sh` does that for you. Expect the TV to drop off the
+  network when you disable it: on two MiTV-MOOR2 (Android 11) it left Wi-Fi or went to standby
+  within seconds, and someone had to be at the TV. Reconnect Wi-Fi on the TV, then run the install
+  script again.
 - **The TV drops off Wi-Fi every minute right after the install**, seen on Google TV 14 (Xiaomi
   MiTV-MZTU0): the same setupwraith `.RecoveryActivity` took Home and system_server crash-looped
   on it. The install script now starts the new launcher before disabling the stock one, sets the
@@ -81,6 +84,10 @@ Things that bit us or contributors, so they don't bite you. Commands use `tools/
   or a reinstall from scratch: clearing the launcher's data also drops the location permission
   Android 10 needs to read the SSID. `pm grant com.majnioui.cleanxiaomitv android.permission.ACCESS_FINE_LOCATION`
   (the install script does this).
+- **The network pill says "Wi-Fi" although the permission is granted**: Android only hands out the network
+  name while Location is on, and Xiaomi TVs ship with it off (`settings get secure location_mode` prints 0).
+  The install script turns it on with `settings put secure location_mode 3`; nothing on the TV uses it
+  otherwise. Without it, the pill keeps saying "Wi-Fi".
 - **Home is "Select a Home app"** after `tools/restore.sh` followed by re-applying a list: disabling a
   package that also claims HOME (PatchWall on Xiaomi) makes Android drop the default. The install
   script now picks the known stock launcher among the candidates by itself; otherwise choose one on

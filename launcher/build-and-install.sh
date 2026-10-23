@@ -62,6 +62,7 @@ printf '%s\n' \
   "pm install -r /data/local/tmp/tvhome.apk" \
   "rm -f /data/local/tmp/tvhome.apk" \
   "pm grant com.majnioui.cleanxiaomitv android.permission.ACCESS_FINE_LOCATION 2>/dev/null; echo location-granted" \
+  "settings put secure location_mode 3; echo location-on" \
   "cmd notification allow_listener com.majnioui.cleanxiaomitv/com.gathin.tvhome.MediaListener; echo now-playing-allowed" \
   "cmd package compile -m speed -f com.majnioui.cleanxiaomitv" \
   "am start -W -n com.majnioui.cleanxiaomitv/com.gathin.tvhome.MainActivity | grep -E '^(Status|Error)'" \
@@ -98,12 +99,11 @@ fi
 #   INPUT_KEY_SERVICE=1   the remote's Input button (KEYCODE_TV) opens the input switcher from any
 #                         app; Google TV needs this once the stock launcher is gone (InputKeyService).
 #                         Also makes Xiaomi remotes' YouTube and Apps buttons open YouTube and the launcher
-#   HOME_KEY_SERVICE=1    remotes whose Home button sends KEYCODE_ALL_APPS instead of HOME, e.g. Xiaomi
-#                         sticks: the key is routed to the launcher (HomeKeyService)
-enable_service() {   # appends to enabled_accessibility_services without dropping other services
+# Takes the service out of enabled_accessibility_services and puts it back, keeping other services:
+# after a reinstall Android can keep it listed but unbound ("crashed") until the setting changes.
+enable_service() {
   svc=com.majnioui.cleanxiaomitv/com.gathin.tvhome.$1
-  "$PY" -I ../tools/tv.py "s=\$(settings get secure enabled_accessibility_services); case \"\$s\" in *$1*) ;; null|'') settings put secure enabled_accessibility_services $svc ;; *) settings put secure enabled_accessibility_services \"\$s:$svc\" ;; esac; settings put secure accessibility_enabled 1; echo $1 enabled"
+  "$PY" -I ../tools/tv.py "rest=\$(settings get secure enabled_accessibility_services | tr ':' '\\n' | grep -v -e '^null\$' -e '^$svc\$' | tr '\\n' ':'); rest=\${rest%:}; if [ -n \"\$rest\" ]; then settings put secure enabled_accessibility_services \"\$rest\"; else settings delete secure enabled_accessibility_services >/dev/null; fi; settings put secure enabled_accessibility_services \"\${rest:+\$rest:}$svc\"; settings put secure accessibility_enabled 1; echo $1 enabled"
 }
 if [ "${INPUT_KEY_SERVICE:-0}" = 1 ]; then enable_service InputKeyService; fi
-if [ "${HOME_KEY_SERVICE:-0}" = 1 ]; then enable_service HomeKeyService; fi
 echo "Installed. Press Home on the remote to see it."

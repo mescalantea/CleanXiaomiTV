@@ -6,7 +6,7 @@
         <item name="android:windowAnimationStyle">@null</item>
     </style>
 
-    <!-- Frosted pill, tvOS style. -->
+    <!-- Flat translucent pill that turns white when focused, as on Google TV. -->
     <style name="TopButtonBase">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">42dp</item>

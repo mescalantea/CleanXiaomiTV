@@ -14,7 +14,6 @@ import android.util.Log;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import org.json.JSONArray;
@@ -38,15 +37,13 @@ import java.util.concurrent.Executors;
 /**
  * Screensaver: the launcher's thin clock and date on black, over a slow ambient glow.
  * Four corners: clock, date and weather top left; the photo credit top right; the song playing bottom
- * left; a thikr bottom right (dream_athkar, res/values/athkar.xml), a new one every minute. Every minute
- * the clock also shifts a few pixels and the glow changes colour, so nothing burns in.
+ * left. Every minute the clock also shifts a few pixels and the glow changes colour, so nothing burns in.
  * With dream_photos on, Bing's photos of the day replace the glow, a new one every few minutes with a
  * slow zoom; they are kept in the cache directory, so the screensaver still has photos offline.
  * The weather line uses the home screen's weather settings. Network work runs on one background thread.
  * With now_playing on, the song a music app is playing shows in the top left corner (NowPlaying).
- * With dream_prayer on, today's prayer times sit under the weather, the next one lit (Prayer).
  * With dream_analog on, an analog clock (AnalogClockView) takes the digital clock's place.
- * dream_athkar, dream_prayer and dream_analog can be switched from the home screen's Settings menu (Config.setToggle).
+ * dream_analog can be switched from the home screen's Settings menu (Config.setToggle).
  */
 public class ClockDream extends DreamService {
     private static final String TAG = "TvHome.Dream";
@@ -66,11 +63,6 @@ public class ClockDream extends DreamService {
     private GradientDrawable glow;
     private int colorIndex;
     private int glowColor;
-    private View athkarBox;
-    private TextView thikr, thikrSource;
-    /** "text|source" items, or null when dream_athkar is off. */
-    private String[] athkar;
-    private int thikrIndex = -1;
 
     private boolean photosOn;
     private ImageView photoA, photoB;
@@ -93,24 +85,13 @@ public class ClockDream extends DreamService {
     private String weatherUrl, weatherPlace;
     private long weatherAt = -WEATHER_MS;
 
-    private View prayerBox;
-    private LinearLayout prayerRow;
-    private TextView prayerLeft;
-    private String prayerLat, prayerLon;
-    private int prayerMethod;
-    private Prayer.Day prayerDay;
-    private long prayerAt = -5 * MOVE_MS;
-    private android.graphics.Typeface font;
-
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
             moveClock();
-            nextThikr();
             shiftGlow();
             if (photosOn && ++ticks % PHOTO_EVERY == 0) nextPhoto();
             updateWeather();
-            updatePrayer();
             handler.postDelayed(this, MOVE_MS);
         }
     };
@@ -138,19 +119,6 @@ public class ClockDream extends DreamService {
         colorIndex = random.nextInt(PALETTE.length);
         setGlow(PALETTE[colorIndex]);
 
-        athkarBox = findViewById(R.id.dreamAthkar);
-        thikr = findViewById(R.id.dreamThikr);
-        thikrSource = findViewById(R.id.dreamThikrSource);
-        if (cfg.dreamAthkar) {
-            athkar = getResources().getStringArray(R.array.athkar);
-            if (athkar.length > 0) {
-                athkarBox.setVisibility(View.VISIBLE);
-                showThikr();
-            } else {
-                athkar = null;
-            }
-        }
-
         photosOn = cfg.dreamPhotos;
         photoA = findViewById(R.id.dreamPhotoA);
         photoB = findViewById(R.id.dreamPhotoB);
@@ -171,16 +139,6 @@ public class ClockDream extends DreamService {
             weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" + cfg.weatherLatitude
                     + "&longitude=" + cfg.weatherLongitude + "&current=temperature_2m,weather_code,is_day&timezone=auto";
         }
-
-        prayerBox = findViewById(R.id.dreamPrayer);
-        prayerRow = findViewById(R.id.dreamPrayerRow);
-        prayerLeft = findViewById(R.id.dreamPrayerLeft);
-        shade(prayerLeft);
-        if (cfg.dreamPrayer && !cfg.weatherLatitude.isEmpty() && !cfg.weatherLongitude.isEmpty()) {
-            prayerLat = cfg.weatherLatitude;
-            prayerLon = cfg.weatherLongitude;
-            prayerMethod = cfg.prayerMethod;
-        }
     }
 
     @Override
@@ -194,7 +152,6 @@ public class ClockDream extends DreamService {
         if (photosOn) loadPhotoList();
         if (nowPlaying != null) nowPlaying.start();
         updateWeather();
-        updatePrayer();
         handler.postDelayed(tick, MOVE_MS);
     }
 
@@ -237,26 +194,6 @@ public class ClockDream extends DreamService {
     private float[] jitter() {
         float j = 6 * getResources().getDisplayMetrics().density;
         return new float[] {random.nextFloat() * j, random.nextFloat() * j};
-    }
-
-    private void nextThikr() {
-        if (athkar == null) return;
-        athkarBox.animate().alpha(0f).setDuration(900).withEndAction(() -> {
-            showThikr();
-            athkarBox.animate().alpha(1f).setDuration(1200).start();
-        }).start();
-    }
-
-    /** A random thikr, never the same one twice in a row. */
-    private void showThikr() {
-        int i = random.nextInt(athkar.length);
-        if (athkar.length > 1 && i == thikrIndex) i = (i + 1) % athkar.length;
-        thikrIndex = i;
-        String item = athkar[i];
-        int bar = item.lastIndexOf('|');
-        thikr.setText(bar > 0 ? item.substring(0, bar) : item);
-        thikrSource.setText(bar > 0 ? item.substring(bar + 1) : "");
-        thikrSource.setVisibility(bar > 0 ? View.VISIBLE : View.GONE);
     }
 
     private void shiftGlow() {
@@ -310,7 +247,6 @@ public class ClockDream extends DreamService {
         scrim.bringToFront();
         caption.bringToFront();
         content.bringToFront();
-        athkarBox.bringToFront();
         nowBox.bringToFront();
         front.setAlpha(0f);
         front.setScaleX(1f);
@@ -359,80 +295,6 @@ public class ClockDream extends DreamService {
         }
         nowBox.setAlpha(t.playing ? 1f : 0.6f);
         nowBox.setVisibility(View.VISIBLE);
-    }
-
-    // ---- prayer times ---------------------------------------------------------------------------
-
-    /** Today's times from the file the home screen saves, or from Aladhan when it has none for today. */
-    private void updatePrayer() {
-        if (prayerLat == null) return;
-        String key = Prayer.key(prayerLat, prayerLon, prayerMethod);
-        if (prayerDay == null || !prayerDay.key.equals(key)) {
-            Prayer.Day saved = Prayer.cached(this, key);
-            if (saved != null) {
-                prayerDay = saved;
-            } else if (android.os.SystemClock.elapsedRealtime() - prayerAt >= 5 * MOVE_MS) {
-                prayerAt = android.os.SystemClock.elapsedRealtime();
-                final String lat = prayerLat, lon = prayerLon;
-                final int method = prayerMethod;
-                io.execute(() -> {
-                    Prayer.Day day = Prayer.fetch(this, lat, lon, method);
-                    if (day != null) handler.post(() -> {
-                        prayerDay = day;
-                        showPrayer();
-                    });
-                });
-            }
-        }
-        showPrayer();
-    }
-
-    /** A column per prayer: the name small, the time below; the next one bright, with its countdown under the row. */
-    private void showPrayer() {
-        if (prayerDay == null) return;
-        Prayer.Next next = Prayer.next(prayerDay);
-        prayerRow.removeAllViews();
-        float d = getResources().getDisplayMetrics().density;
-        for (int i = 0; i < Prayer.KEYS.length; i++) {
-            if (i == Prayer.SUNRISE) continue;
-            boolean lit = i == next.index;
-            LinearLayout col = new LinearLayout(this);
-            col.setOrientation(LinearLayout.VERTICAL);
-            TextView name = dreamText(12, lit ? 600 : 500, lit ? MainActivity.PRAYER_GOLD : 0x73FFFFFF);
-            name.setText(Prayer.name(this, i));
-            name.setLetterSpacing(0.14f);
-            name.setAllCaps(true);
-            col.addView(name);
-            TextView time = dreamText(22, lit ? 400 : 200, lit ? 0xFFFFFFFF : 0xB3FFFFFF);
-            time.setText(Prayer.time(this, prayerDay.minutes[i]));
-            time.setPadding(0, Math.round(5 * d), 0, 0);
-            col.addView(time);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT);
-            lp.rightMargin = Math.round(30 * d);
-            prayerRow.addView(col, lp);
-        }
-        prayerLeft.setText(Prayer.name(this, next.index) + "  ·  " + Prayer.countdown(this, next));
-        prayerLeft.setTextColor(next.minutesLeft <= Prayer.NOW_MINUTES ? MainActivity.PRAYER_GOLD : 0xA6FFFFFF);
-        prayerBox.setVisibility(View.VISIBLE);
-    }
-
-    private TextView dreamText(float sp, int weight, int color) {
-        TextView t = new TextView(this);
-        t.setTextSize(sp);
-        t.setTextColor(color);
-        t.setIncludeFontPadding(false);
-        if (font == null) font = getResources().getFont(R.font.outfit);
-        t.setTypeface(font);
-        t.setFontVariationSettings("'wght' " + weight);
-        shade(t);
-        return t;
-    }
-
-    /** A soft shadow, so dim text stays readable over a bright part of a photo. */
-    private void shade(TextView t) {
-        float d = getResources().getDisplayMetrics().density;
-        t.setShadowLayer(6 * d, 0, d, 0x99000000);
     }
 
     // ---- weather --------------------------------------------------------------------------------

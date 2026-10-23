@@ -5,9 +5,12 @@
 #
 # Usage: TV_HOST=192.168.1.50 tools/theme.sh themes/aurora
 #        TV_HOST=192.168.1.50 tools/theme.sh --reset        # remove the overlay, back to config.xml
+#        TV_HOST=192.168.1.50 tools/theme.sh --private themes/private/private.json
+#                                  # your own values (Jellyfin, YouTube, weather); --reset leaves them
 set -euo pipefail
 # Resolve the theme folder against the caller's directory before moving into tools/.
 THEME_ARG="${1:-}"
+[ "$THEME_ARG" = --private ] && THEME_ARG="${2:?usage: theme.sh --private <private.json>}" && PRIVATE=1
 case "$THEME_ARG" in --reset|"") ;; /*) ;; *) THEME_ARG="$PWD/$THEME_ARG" ;; esac
 cd "$(dirname "$0")"
 : "${TV_HOST:?set TV_HOST to the TV IP address, e.g. TV_HOST=192.168.1.50 $0 themes/aurora}"
@@ -19,8 +22,16 @@ PKG=com.majnioui.cleanxiaomitv
 DIR=/sdcard/Android/data/$PKG/files
 tv() { "$PY" -I tv.py "$@"; }
 
+if [ "${PRIVATE:-0}" = 1 ]; then
+  python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$THEME_ARG" 2>/dev/null \
+    || { echo "$THEME_ARG is not valid JSON" >&2; exit 1; }
+  tv "mkdir -p $DIR" >/dev/null
+  tv --push "$THEME_ARG" "$DIR/private.json"
+  tv "am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo applied" | tail -n 1
+  exit 0
+fi
 if [ "${1:-}" = --reset ]; then
-  tv "rm -f $DIR/config.json $DIR/wallpaper.jpg; am force-stop $PKG; am start -n $PKG/.MainActivity >/dev/null; echo reset" | tail -n 1
+  tv "rm -f $DIR/config.json $DIR/wallpaper.jpg; am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo reset" | tail -n 1
   exit 0
 fi
 THEME="${THEME_ARG:?usage: theme.sh <theme folder> | --reset}"
@@ -35,5 +46,5 @@ if [ -f "$THEME/wallpaper.jpg" ]; then
 else
   tv "rm -f $DIR/wallpaper.jpg" >/dev/null
 fi
-tv "am force-stop $PKG; am start -n $PKG/.MainActivity >/dev/null; echo applied" | tail -n 1
+tv "am start -n $PKG/com.gathin.tvhome.MainActivity >/dev/null; echo applied" | tail -n 1
 echo "Theme $(basename "$THEME") is on the TV. Undo with: tools/theme.sh --reset"

@@ -10,7 +10,7 @@ import androidx.annotation.NonNull;
 
 /**
  * The green "VPN" capsule drawn inside the network pill while a VPN is up: a lock and the word VPN, dark on
- * green, so it reads on both the frosted and the focused (white) pill. With a VPN app configured and no VPN
+ * green, so it reads on both the dark and the focused (white) pill. With a VPN app configured and no VPN
  * up, the same capsule turns red, without the lock, so a dropped VPN is noticed.
  */
 final class VpnBadge extends ReplacementSpan {

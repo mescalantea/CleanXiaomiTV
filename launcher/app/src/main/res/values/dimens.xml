@@ -2,4 +2,11 @@
 <resources>
     <!-- A Settings menu row (item_setting); the menu shows about six before it scrolls. -->
     <dimen name="setting_row_height">28dp</dimen>
+    <!-- Home's side margin, shared by the header, the hero, section titles and the first card of each row. -->
+    <dimen name="home_margin">60dp</dimen>
+    <!-- Space between two sections, and between two cards of a row. -->
+    <dimen name="section_gap">22dp</dimen>
+    <dimen name="card_gap">16dp</dimen>
+    <dimen name="card_width">200dp</dimen>
+    <dimen name="card_height">112dp</dimen>
 </resources>

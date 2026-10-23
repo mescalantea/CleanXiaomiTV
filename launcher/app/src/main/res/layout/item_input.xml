@@ -47,5 +47,6 @@
         android:duplicateParentState="true"
         android:textSize="11sp"
         android:fontFamily="@font/outfit"
+        android:fontVariationSettings="'wght' 500"
         android:letterSpacing="0.04" />
 </LinearLayout>

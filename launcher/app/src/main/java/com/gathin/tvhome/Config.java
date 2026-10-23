@@ -21,17 +21,20 @@ import java.util.List;
 /**
  * The launcher's settings: the values in res/values/config.xml, with an optional overlay read from
  * {@code config.json} in the app's external files directory
- * ({@code /sdcard/Android/data/com.gathin.tvhome/files/}). Every key in the JSON is optional and an
+ * ({@code /sdcard/Android/data/com.majnioui.cleanxiaomitv/files/}). Every key in the JSON is optional and an
  * unknown or badly typed key is ignored, so a theme can change the dock and the look without a rebuild:
  * {@code tools/theme.sh themes/<name>} pushes a theme folder there and restarts Home.
+ * {@code private.json} in the same folder is read after it, for the owner's own values that never go in the
+ * repo: the Jellyfin server and key, the YouTube channels and the weather location.
  *
- * The few switches in the Settings menu (athkar, prayer times, the analog clock) are saved on the TV and win over both.
+ * The few switches in the Settings menu (the analog clock, apps per row) are saved on the TV and win over both.
  *
  * Read once in {@link MainActivity#onCreate}; nothing here touches the network.
  */
 final class Config {
     private static final String TAG = "TvHome.Config";
     static final String FILE_NAME = "config.json";
+    static final String PRIVATE_NAME = "private.json";
     static final String WALLPAPER_NAME = "wallpaper.jpg";
 
     final List<String> dockApps;
@@ -41,32 +44,57 @@ final class Config {
     final String sourcePanelService;
     final String sourcePanelAction;
     final String inputAction;
-    final int columns;
     final int gridColumns;
-    final int rowsBelowDock;
-    /** How opaque the dock band's glass is, 0 to 100 (config.xml, dock_opacity); lower shows more of the photo. */
-    final int dockOpacity;
-    /** The focused tile lifts, zooms and gets a bright edge, and apps open with a soft transition (advanced_effects). */
-    final boolean advancedEffects;
-    final boolean shamsiDate;
-    final boolean dreamAthkar;
-    /** Today's prayer times under the clock on Home, and on the screensaver; at the weather coordinates. */
-    final boolean homePrayer;
-    final boolean dreamPrayer;
     /** An analog clock on the screensaver instead of the digital one. */
     final boolean dreamAnalog;
-    /** Aladhan calculation method (21 = Morocco, 3 = Muslim World League, ...). */
-    final int prayerMethod;
     final boolean dreamPhotos;
     final boolean nowPlaying;
     final boolean homePhoto;
-    final boolean moduleCards;
     final String vpnApp;
     /** Open-Meteo location for the weather line; an empty latitude hides it. */
     final String weatherLatitude;
     final String weatherLongitude;
     final String weatherPlace;
     final boolean showHomeSettingsShortcut;
+    /** Jellyfin server (https://...), API key and user id; the shelf shows nothing from Jellyfin unless all three are set. */
+    final String jellyfinUrl;
+    final String jellyfinApiKey;
+    final String jellyfinUserId;
+    /** YouTube channel ids whose latest videos go on the shelf. */
+    final List<String> youtubeChannels;
+    /** tvg-ids of the live channels for the shelf's "En directo" part, in order. */
+    final List<String> tvChannels;
+    /** YouTube Data API key, to read a person's public subscriptions; empty without one. */
+    final String youtubeApiKey;
+    /** The person's own YouTube channel id, whose subscriptions feed the shelf (with youtubeApiKey). */
+    final String youtubeChannelId;
+    /** The people using the TV (private.json, profiles); empty when there is only the flat keys above. */
+    final List<Profile> profiles;
+
+    /** One person's own values; empty fields fall back to the flat keys (see {@link #profile}). */
+    static final class Profile {
+        final String name;
+        final String jellyfinUserId;
+        final String youtubeChannelId;
+        final List<String> youtubeChannels;
+        /** Picture for the profile button (https), or empty for the Jellyfin user's avatar. */
+        final String photo;
+        final List<String> tvChannels;
+
+        Profile(String name, String jellyfinUserId, String youtubeChannelId, List<String> youtubeChannels) {
+            this(name, jellyfinUserId, youtubeChannelId, youtubeChannels, "", Collections.emptyList());
+        }
+
+        Profile(String name, String jellyfinUserId, String youtubeChannelId, List<String> youtubeChannels, String photo,
+                List<String> tvChannels) {
+            this.name = name;
+            this.photo = photo;
+            this.tvChannels = Collections.unmodifiableList(tvChannels);
+            this.jellyfinUserId = jellyfinUserId;
+            this.youtubeChannelId = youtubeChannelId;
+            this.youtubeChannels = Collections.unmodifiableList(youtubeChannels);
+        }
+    }
     /** Background colour behind everything, #RRGGBB; black unless a theme says otherwise. */
     final int backgroundColor;
     /** Full-screen picture behind the launcher, or null for the plain colour. */
@@ -76,10 +104,10 @@ final class Config {
 
     private Config(List<String> dockApps, List<String> hiddenApps, String liveTvPackage, String liveTvAction,
                    String sourcePanelService, String sourcePanelAction, String inputAction,
-                   int columns, int gridColumns, int rowsBelowDock, int dockOpacity,
-                   boolean advancedEffects,
-                   boolean shamsiDate, boolean dreamAthkar, boolean homePrayer, boolean dreamPrayer, boolean dreamAnalog, int prayerMethod, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, boolean moduleCards, String vpnApp,
-                   String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut, int backgroundColor,
+                   int gridColumns,
+                   boolean dreamAnalog, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, String vpnApp,
+                   String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut,
+                   String jellyfinUrl, String jellyfinApiKey, String jellyfinUserId, List<String> youtubeChannels, List<String> tvChannels, String youtubeApiKey, String youtubeChannelId, List<Profile> profiles, int backgroundColor,
                    File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
@@ -88,26 +116,24 @@ final class Config {
         this.sourcePanelService = sourcePanelService;
         this.sourcePanelAction = sourcePanelAction;
         this.inputAction = inputAction;
-        this.columns = columns;
         this.gridColumns = gridColumns;
-        this.rowsBelowDock = rowsBelowDock;
-        this.dockOpacity = dockOpacity;
-        this.advancedEffects = advancedEffects;
-        this.shamsiDate = shamsiDate;
-        this.dreamAthkar = dreamAthkar;
-        this.homePrayer = homePrayer;
-        this.dreamPrayer = dreamPrayer;
         this.dreamAnalog = dreamAnalog;
-        this.prayerMethod = prayerMethod;
         this.dreamPhotos = dreamPhotos;
         this.nowPlaying = nowPlaying;
         this.homePhoto = homePhoto;
-        this.moduleCards = moduleCards;
         this.vpnApp = vpnApp;
         this.weatherLatitude = weatherLatitude;
         this.weatherLongitude = weatherLongitude;
         this.weatherPlace = weatherPlace;
         this.showHomeSettingsShortcut = showHomeSettingsShortcut;
+        this.jellyfinUrl = jellyfinUrl;
+        this.jellyfinApiKey = jellyfinApiKey;
+        this.jellyfinUserId = jellyfinUserId;
+        this.youtubeChannels = Collections.unmodifiableList(youtubeChannels);
+        this.tvChannels = Collections.unmodifiableList(tvChannels);
+        this.youtubeApiKey = youtubeApiKey;
+        this.youtubeChannelId = youtubeChannelId;
+        this.profiles = Collections.unmodifiableList(profiles);
         this.backgroundColor = backgroundColor;
         this.wallpaper = wallpaper;
         this.overlayApplied = overlayApplied;
@@ -116,6 +142,18 @@ final class Config {
     /** The folder the theme tools push into; null when external storage is unavailable. */
     static File dir(Context ctx) {
         return ctx.getExternalFilesDir(null);
+    }
+
+    /** Changes whenever a pushed file (config.json, private.json, the wallpaper) is added, changed or removed. */
+    static String stamp(Context ctx) {
+        File dir = dir(ctx);
+        if (dir == null) return "";
+        StringBuilder s = new StringBuilder();
+        for (String name : new String[] {FILE_NAME, PRIVATE_NAME, WALLPAPER_NAME}) {
+            File f = new File(dir, name);
+            s.append(f.isFile() ? f.length() + "@" + f.lastModified() : "-").append(';');
+        }
+        return s.toString();
     }
 
     static Config load(Context ctx) {
@@ -127,21 +165,11 @@ final class Config {
         String panelService = res.getString(R.string.source_panel_service).trim();
         String panelAction = res.getString(R.string.source_panel_action).trim();
         String inputAction = res.getString(R.string.input_action).trim();
-        int columns = res.getInteger(R.integer.columns);
         int gridColumns = res.getInteger(R.integer.grid_columns);
-        int rowsBelow = res.getInteger(R.integer.rows_below_dock);
-        int dockOpacity = res.getInteger(R.integer.dock_opacity);
-        boolean advancedEffects = res.getBoolean(R.bool.advanced_effects);
-        boolean shamsi = res.getBoolean(R.bool.shamsi_date);
-        boolean athkar = res.getBoolean(R.bool.dream_athkar);
-        boolean homePrayer = res.getBoolean(R.bool.home_prayer);
-        boolean dreamPrayer = res.getBoolean(R.bool.dream_prayer);
         boolean dreamAnalog = res.getBoolean(R.bool.dream_analog);
-        int prayerMethod = res.getInteger(R.integer.prayer_method);
         boolean photos = res.getBoolean(R.bool.dream_photos);
         boolean playing = res.getBoolean(R.bool.now_playing);
         boolean homePhoto = res.getBoolean(R.bool.home_photo);
-        boolean moduleCards = res.getBoolean(R.bool.module_cards);
         String vpn = res.getString(R.string.vpn_app).trim();
         String weatherLat = res.getString(R.string.weather_latitude).trim();
         String weatherLon = res.getString(R.string.weather_longitude).trim();
@@ -162,22 +190,11 @@ final class Config {
             panelService = string(json, "source_panel_service", panelService);
             panelAction = string(json, "source_panel_action", panelAction);
             inputAction = string(json, "input_action", inputAction);
-            columns = integer(json, "columns", columns, 1, 8);
-            // A theme that sets only columns gets an even grid, as before grid_columns existed.
-            gridColumns = integer(json, "grid_columns", json.has("columns") ? columns : gridColumns, 1, 8);
-            rowsBelow = integer(json, "rows_below_dock", rowsBelow, 0, 3);
-            dockOpacity = integer(json, "dock_opacity", dockOpacity, 0, 100);
-            advancedEffects = bool(json, "advanced_effects", advancedEffects);
-            shamsi = bool(json, "shamsi_date", shamsi);
-            athkar = bool(json, "dream_athkar", athkar);
-            homePrayer = bool(json, "home_prayer", homePrayer);
-            dreamPrayer = bool(json, "dream_prayer", dreamPrayer);
+            gridColumns = integer(json, "grid_columns", gridColumns, 1, 8);
             dreamAnalog = bool(json, "dream_analog", dreamAnalog);
-            prayerMethod = integer(json, "prayer_method", prayerMethod, 0, 99);
             photos = bool(json, "dream_photos", photos);
             playing = bool(json, "now_playing", playing);
             homePhoto = bool(json, "home_photo", homePhoto);
-            moduleCards = bool(json, "module_cards", moduleCards);
             vpn = string(json, "vpn_app", vpn);
             weatherLat = string(json, "weather_latitude", weatherLat);
             weatherLon = string(json, "weather_longitude", weatherLon);
@@ -185,15 +202,28 @@ final class Config {
             homeSettings = bool(json, "show_home_settings_shortcut", homeSettings);
             background = color(json, "background_color", background);
         }
+        String jellyfinUrl = "", jellyfinKey = "", jellyfinUser = "", youtubeKey = "", youtubeId = "";
+        List<String> youtube = new ArrayList<>(), tv = new ArrayList<>();
+        List<Profile> profiles = new ArrayList<>();
+        JSONObject own = read(dir != null ? new File(dir, PRIVATE_NAME) : null);
+        if (own != null) {
+            jellyfinUrl = string(own, "jellyfin_url", jellyfinUrl);
+            jellyfinKey = string(own, "jellyfin_api_key", jellyfinKey);
+            jellyfinUser = string(own, "jellyfin_user_id", jellyfinUser);
+            youtube = stringList(own, "youtube_channels", youtube);
+            tv = stringList(own, "tv_channels", tv);
+            youtubeKey = string(own, "youtube_api_key", youtubeKey);
+            youtubeId = string(own, "youtube_channel_id", youtubeId);
+            profiles = profiles(own);
+            weatherLat = string(own, "weather_latitude", weatherLat);
+            weatherLon = string(own, "weather_longitude", weatherLon);
+            weatherPlace = string(own, "weather_place", weatherPlace);
+        }
         // Switched on the TV itself (Settings menu): wins over config.xml and a theme.
         SharedPreferences toggles = toggles(ctx);
-        athkar = toggles.getBoolean(DREAM_ATHKAR, athkar);
-        homePrayer = toggles.getBoolean(HOME_PRAYER, homePrayer);
-        dreamPrayer = toggles.getBoolean(DREAM_PRAYER, dreamPrayer);
         dreamAnalog = toggles.getBoolean(DREAM_ANALOG, dreamAnalog);
         int chosenColumns = toggles.getInt(GRID_COLUMNS, 0);
         if (chosenColumns >= 4 && chosenColumns <= 7) gridColumns = chosenColumns;
-        advancedEffects = toggles.getBoolean(ADVANCED_EFFECTS, advancedEffects);
 
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
         if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
@@ -201,15 +231,86 @@ final class Config {
         if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpaper = null;
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
-                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow), Math.max(0, Math.min(100, dockOpacity)),
-                advancedEffects, shamsi, athkar, homePrayer, dreamPrayer, dreamAnalog, prayerMethod, photos, playing, homePhoto, moduleCards, vpn,
-                weatherLat, weatherLon, weatherPlace, homeSettings, background,
+                Math.max(1, gridColumns),
+                dreamAnalog, photos, playing, homePhoto, vpn,
+                weatherLat, weatherLon, weatherPlace, homeSettings,
+                jellyfinUrl, jellyfinKey, jellyfinUser, youtube, tv, youtubeKey, youtubeId, profiles, background,
                 wallpaper, applied);
     }
 
+    /**
+     * The values for the named profile, else the first one, merged with the flat keys: the profile's
+     * Jellyfin user and YouTube channel id win, and the YouTube channels of both apply. Without profiles,
+     * the flat keys alone.
+     */
+    Profile profile(String name) {
+        return merge(profiles, name, new Profile("", jellyfinUserId, youtubeChannelId, youtubeChannels, "", tvChannels));
+    }
+
+    static Profile merge(List<Profile> profiles, String name, Profile flat) {
+        Profile chosen = null;
+        for (Profile p : profiles) if (p.name.equals(name)) chosen = p;
+        if (chosen == null && !profiles.isEmpty()) chosen = profiles.get(0);
+        if (chosen == null) return flat;
+        return new Profile(chosen.name, chosen.jellyfinUserId.isEmpty() ? flat.jellyfinUserId : chosen.jellyfinUserId,
+                chosen.youtubeChannelId.isEmpty() ? flat.youtubeChannelId : chosen.youtubeChannelId,
+                union(flat.youtubeChannels, chosen.youtubeChannels), chosen.photo, union(flat.tvChannels, chosen.tvChannels));
+    }
+
+    /** a, then whatever of b it lacks, in order. */
+    static List<String> union(List<String> a, List<String> b) {
+        List<String> out = new ArrayList<>(a);
+        for (String s : b) if (!out.contains(s)) out.add(s);
+        return out;
+    }
+
+    /**
+     * "profiles": [{"name": ..., "jellyfin_user_id": ..., "youtube_channel_id": ..., "youtube_channels": [...], "tv_channels": [...],
+     * "photo": "https://..."}];
+     * entries without a name are skipped, and so is a photo that isn't https.
+     */
+    static List<Profile> profiles(JSONObject o) {
+        List<Profile> out = new ArrayList<>();
+        JSONArray a = o.optJSONArray("profiles");
+        if (a == null) return out;
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject p = a.optJSONObject(i);
+            if (p == null) continue;
+            String name = string(p, "name", "");
+            if (name.isEmpty()) continue;
+            String photo = string(p, "photo", "");
+            out.add(new Profile(name, string(p, "jellyfin_user_id", ""), string(p, "youtube_channel_id", ""),
+                    stringList(p, "youtube_channels", new ArrayList<>()), photo.startsWith("https://") ? photo : "",
+                    stringList(p, "tv_channels", new ArrayList<>())));
+        }
+        return out;
+    }
+
+    /** The profile chosen on the TV (Home's profile button), or "" before any choice. */
+    static String chosenProfile(Context ctx) {
+        return toggles(ctx).getString(PROFILE, "");
+    }
+
+    static void chooseProfile(Context ctx, String name) {
+        toggles(ctx).edit().putString(PROFILE, name).apply();
+    }
+
+    static final String PROFILE = "profile";
+
     /** Keys of the switches in the Settings menu; the same names as in config.xml and config.json. */
-    static final String DREAM_ATHKAR = "dream_athkar", HOME_PRAYER = "home_prayer", DREAM_PRAYER = "dream_prayer",
-            DREAM_ANALOG = "dream_analog", GRID_COLUMNS = "grid_columns", ADVANCED_EFFECTS = "advanced_effects";
+    static final String DREAM_ANALOG = "dream_analog", GRID_COLUMNS = "grid_columns";
+    private static final String SECTIONS = "sections";
+
+    /** Home's sections as the owner ordered them on the TV, or the default order. */
+    static List<String> sectionOrder(Context ctx) {
+        String saved = toggles(ctx).getString(SECTIONS, "");
+        return saved.isEmpty() ? Arrays.asList(MainActivity.SECTION_YOUTUBE, MainActivity.SECTION_TV,
+                MainActivity.SECTION_JELLYFIN, MainActivity.SECTION_APPS) : Arrays.asList(saved.split(","));
+    }
+
+    static void saveSectionOrder(Context ctx, List<String> order) {
+        toggles(ctx).edit().putString(SECTIONS, String.join(",", order)).apply();
+    }
 
     private static SharedPreferences toggles(Context ctx) {
         return ctx.getSharedPreferences("toggles", Context.MODE_PRIVATE);
@@ -240,7 +341,8 @@ final class Config {
             if (text.startsWith("﻿")) text = text.substring(1);   // Windows editors add a BOM
             return new JSONObject(text);
         } catch (Exception e) {
-            Log.w(TAG, "ignoring " + file + ": " + e.getMessage());
+            // The class only: a JSON error message quotes the file, keys and all.
+            Log.w(TAG, "ignoring " + file.getName() + ": " + e.getClass().getSimpleName());
             return null;
         }
     }

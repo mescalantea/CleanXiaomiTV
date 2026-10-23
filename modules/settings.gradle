@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "tv-modules"
-include ':weather', ':prayer', ':channels'
+include ':weather', ':channels'

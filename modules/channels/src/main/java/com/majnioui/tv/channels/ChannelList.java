@@ -12,7 +12,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,10 +19,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The channels: which ones, their groups and order come from res/raw/channels.m3u. Their links and
- * logos are refreshed once a day from public iptv-org lists (res/values/config.xml, sources), matched
- * by tvg-id, so a channel that moves to a new link keeps working. The merged list is saved, so the app
- * starts with the last good links and still works when the lists can't be reached.
+ * The channels come from TDTChannels' public list (res/values/config.xml, sources), fetched once a day, in
+ * its order: Spanish national and regional groups first, international ones after. The list is saved, so
+ * the app starts with the last good links and still works when it can't be reached; before the first fetch
+ * it falls back to res/raw/channels.m3u, a snapshot of the Spanish channels.
  */
 final class ChannelList {
     private static final String TAG = "Channels";
@@ -78,38 +77,46 @@ final class ChannelList {
     }
 
     /**
-     * New links and logos for the bundled channels from the public lists; saves and returns the result,
-     * or null when no list could be fetched. Blocking: run off the main thread.
+     * The channels of the public lists, in their order; saves and returns them, or null when no list could be
+     * fetched. Blocking: run off the main thread.
      */
-    static List<Channel> refresh(Context ctx) {
-        Map<String, Channel> fresh = new HashMap<>();
-        boolean any = false;
+    static synchronized List<Channel> refresh(Context ctx) {
+        // One fetch at a time (the app and its guide provider both ask); a caller that waited gets the saved list.
+        if (!refreshDue(ctx)) return load(ctx);
+        List<Channel> fetched = new ArrayList<>();
         for (String src : ctx.getResources().getStringArray(R.array.sources)) {
             try {
-                for (Channel c : parse(new String(fetch(src), StandardCharsets.UTF_8))) {
-                    if (!c.id.isEmpty() && !fresh.containsKey(c.id)) fresh.put(c.id, c);
-                }
-                any = true;
+                fetched.addAll(parse(new String(fetch(src), StandardCharsets.UTF_8)));
             } catch (Exception e) {
                 Log.w(TAG, "source " + src + ": " + e);
             }
         }
-        if (!any) return null;
-        List<Channel> list = bundled(ctx);
-        for (Channel c : list) {
-            Channel f = fresh.get(c.id);
-            if (f == null || f.url.isEmpty()) continue;   // not listed today: keep the bundled link
-            c.url = f.url;
-            c.userAgent = f.userAgent;
-            c.referrer = f.referrer;
-            if (!f.logo.isEmpty()) c.logo = f.logo;
-        }
-        try (FileOutputStream out = new FileOutputStream(new File(ctx.getFilesDir(), SAVED))) {
+        List<Channel> list = unique(fetched);
+        if (list.isEmpty()) return null;
+        // Written aside and renamed, so a reader never sees half a list.
+        File tmp = new File(ctx.getFilesDir(), SAVED + ".tmp");
+        try (FileOutputStream out = new FileOutputStream(tmp)) {
             out.write(write(list).getBytes(StandardCharsets.UTF_8));
+            out.close();
+            if (!tmp.renameTo(new File(ctx.getFilesDir(), SAVED))) Log.w(TAG, "could not save the list");
         } catch (Exception e) {
             Log.w(TAG, "save: " + e);
         }
         return list;
+    }
+
+    /**
+     * One entry per channel, the first listed: the lists repeat a channel with backup links, and the saved
+     * last channel is found by its id.
+     */
+    static List<Channel> unique(List<Channel> channels) {
+        Map<String, Channel> byKey = new LinkedHashMap<>();
+        for (Channel c : channels) {
+            if (c.url.isEmpty()) continue;
+            String key = c.id.isEmpty() ? c.name : c.id;
+            if (!byKey.containsKey(key)) byKey.put(key, c);
+        }
+        return new ArrayList<>(byKey.values());
     }
 
     /** M3U with #EXTINF attributes (tvg-id, tvg-logo, group-title) and optional #EXTVLCOPT headers. */

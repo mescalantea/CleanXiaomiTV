@@ -17,3 +17,5 @@ modules/.gradle/
 modules/build/
 modules/*/build/
 modules/local.properties
+# your own values for tools/theme.sh --private (Jellyfin key, YouTube channels, weather)
+themes/private/

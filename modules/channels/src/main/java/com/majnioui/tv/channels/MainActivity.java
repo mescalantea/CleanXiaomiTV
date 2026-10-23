@@ -1,14 +1,15 @@
 package com.majnioui.tv.channels;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -43,10 +44,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -59,20 +64,11 @@ import java.util.concurrent.Executors;
  */
 public class MainActivity extends Activity {
     private static final String TAG = "Channels";
+    /** tvg-id of the channel to start on, from another app. */
+    static final String EXTRA_TVG_ID = "tvg_id";
     private static final long BAR_MS = 4000;
     private static final String DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
-    /** Group titles in the bundled list, with their Arabic names. */
-    private static final Map<String, String> ARABIC = new HashMap<>();
-
-    static {
-        ARABIC.put("Morocco", "المغرب");
-        ARABIC.put("News", "الأخبار");
-        ARABIC.put("Entertainment", "الترفيه");
-        ARABIC.put("Documentary", "الوثائقيات");
-        ARABIC.put("Religious", "القنوات الدينية");
-    }
-
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newFixedThreadPool(3);
     private final LruCache<String, Bitmap> logos = new LruCache<>(60);
@@ -90,7 +86,15 @@ public class MainActivity extends Activity {
     private TextView message;
     private LinearLayout bar;
     private ImageView barLogo;
-    private TextView barName, barGroup;
+    private TextView barName, barGroup, barNow, barNext;
+    /** Today's programmes by tvg-id; empty until the guide is loaded, or when there is none. */
+    private Map<String, List<Epg.Programme>> guide = Collections.emptyMap();
+    private java.text.DateFormat clock;
+    private LinearLayout guidePanel;
+    private TextView guideTitle;
+    private ListView guideList;
+    private final GuideAdapter guideAdapter = new GuideAdapter();
+    private List<Epg.Programme> guideItems = Collections.emptyList();
     private LinearLayout menu;
     private ListView list;
     private TextView menuStatus;
@@ -104,16 +108,18 @@ public class MainActivity extends Activity {
         font = getResources().getFont(R.font.outfit);
         accent = getColor(R.color.accent);
         prefs = getSharedPreferences("channels", MODE_PRIVATE);
+        clock = android.text.format.DateFormat.getTimeFormat(this);
 
         root = new FrameLayout(this);
         root.setBackgroundColor(0xFF000000);
         surface = new SurfaceView(this);
         root.addView(surface, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
-        message = text(22, 400, 0xCCFFFFFF);
+        message = text(22, 500, 0xCCFFFFFF);
         message.setGravity(Gravity.CENTER);
         root.addView(message, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         buildBar();
         buildMenu();
+        buildGuide();
         setContentView(root);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -124,15 +130,47 @@ public class MainActivity extends Activity {
                 if (fresh != null) main.post(() -> setChannels(fresh));
             });
         }
+        loadGuide();
+    }
+
+    /** The saved guide first, then a fresh one once a day; playback never waits for it. */
+    private void loadGuide() {
+        final Set<String> ids = new HashSet<>();
+        for (ChannelList.Channel c : channels) if (!c.id.isEmpty()) ids.add(c.id);
+        io.execute(() -> {
+            Map<String, List<Epg.Programme>> saved = Epg.load(this);
+            main.post(() -> setGuide(saved));
+            if (!Epg.refreshDue(this)) return;
+            Map<String, List<Epg.Programme>> fresh = Epg.refresh(this, ids);
+            if (fresh != null) main.post(() -> setGuide(fresh));
+        });
+    }
+
+    private void setGuide(Map<String, List<Epg.Programme>> fresh) {
+        guide = fresh;
+        adapter.notifyDataSetChanged();
     }
 
     @Override
     protected void onStart() {
         super.onStart();
         if (channels.isEmpty()) return;
+        // Opened on a channel from elsewhere (the launcher's shelf): play that one, once.
+        int asked = indexOf(getIntent().getStringExtra(EXTRA_TVG_ID));
+        if (asked >= 0) {
+            getIntent().removeExtra(EXTRA_TVG_ID);
+            play(asked);
+            return;
+        }
         int last = indexOf(prefs.getString("last", ""));
         play(last >= 0 ? last : 0);
         if (last < 0) openMenu();   // first time: show what there is
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
     }
 
     @Override
@@ -164,11 +202,12 @@ public class MainActivity extends Activity {
             rows.add(i);
         }
         if (playingId != null) current = indexOf(playingId);
-        menuStatus.setText(channels.size() + " channels");
+        menuStatus.setText(getString(R.string.channels_count, channels.size()));
         adapter.notifyDataSetChanged();
     }
 
     private int indexOf(String id) {
+        if (id == null) return -1;
         for (int i = 0; i < channels.size(); i++) if (channels.get(i).id.equals(id)) return i;
         return -1;
     }
@@ -178,16 +217,16 @@ public class MainActivity extends Activity {
     private void buildMenu() {
         menu = new LinearLayout(this);
         menu.setOrientation(LinearLayout.VERTICAL);
-        menu.setPadding(dp(28), dp(36), dp(20), dp(24));
-        menu.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[] {0xF20B0D10, 0xE60B0D10, 0xB30B0D10}));
+        menu.setPadding(dp(24), dp(36), dp(24), dp(24));
+        // Opaque: on this TV the video plane shows through a 95% dark panel strongly enough to blur the text.
+        menu.setBackgroundColor(0xFF0B0D10);
         menu.setVisibility(View.GONE);
 
-        TextView title = text(14, 500, 0x99FFFFFF);
+        TextView title = text(15, 600, 0xCCFFFFFF);
         title.setLetterSpacing(0.22f);
-        title.setText("CHANNELS");
+        title.setText(R.string.channels_title);
         menu.addView(title);
-        menuStatus = text(13, 400, 0x66FFFFFF);
+        menuStatus = text(15, 500, 0x99FFFFFF);
         menuStatus.setPadding(0, dp(4), 0, dp(14));
         menu.addView(menuStatus);
 
@@ -197,10 +236,20 @@ public class MainActivity extends Activity {
         list.setVerticalScrollBarEnabled(false);
         list.setItemsCanFocus(false);
         list.setDrawSelectorOnTop(false);
-        GradientDrawable sel = new GradientDrawable();
-        sel.setCornerRadius(dp(12));
-        sel.setColor(0xF5FFFFFF);
-        list.setSelector(sel);
+        // The row draws its own highlight (activated state, res/drawable/row_bg.xml), so its text can turn dark with
+        // it; ListView's selected state comes and goes with focus and left white text on the white selector.
+        list.setSelector(new ColorDrawable(0));
+        list.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                highlight();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                highlight();
+            }
+        });
         list.setOnItemClickListener((parent, view, position, id) -> {
             Object row = rows.get(position);
             if (row instanceof Integer) {
@@ -208,18 +257,30 @@ public class MainActivity extends Activity {
                 closeMenu();
             }
         });
+        list.setOnItemLongClickListener((parent, view, position, id) -> {
+            Object row = rows.get(position);
+            if (row instanceof Integer) openGuide((Integer) row);
+            return true;
+        });
         list.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                 jumpGroup(keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
                 return true;
             }
+            if (keyCode == KeyEvent.KEYCODE_GUIDE || keyCode == KeyEvent.KEYCODE_INFO) {
+                int pos = list.getSelectedItemPosition();
+                if (pos >= 0 && rows.get(pos) instanceof Integer) openGuide((Integer) rows.get(pos));
+                return true;
+            }
             return false;
         });
         menu.addView(list, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        TextView hint = text(12, 400, 0x59FFFFFF);
-        hint.setText("◀ ▶ groups   ·   OK watch   ·   Back close");
+        TextView hint = text(14, 500, 0xB3FFFFFF);
+        hint.setText(R.string.menu_hint);
+        hint.setSingleLine(true);
+        hint.setEllipsize(TextUtils.TruncateAt.END);
         hint.setPadding(0, dp(12), 0, 0);
         menu.addView(hint);
 
@@ -234,8 +295,9 @@ public class MainActivity extends Activity {
         if (channels.isEmpty()) return;
         menu.setVisibility(View.VISIBLE);
         menu.setAlpha(0f);
-        menu.setTranslationX(-dp(40));
-        menu.animate().alpha(1f).translationX(0f).setDuration(180).start();
+        // A fade, not a slide: the video's surface cuts its hole around where the panel is when it is laid out, and a
+        // panel still sliding in left its right edge under the video. The hole is worked out again once it shows.
+        menu.animate().alpha(1f).setDuration(180).withEndAction(() -> root.requestTransparentRegion(surface)).start();
         main.removeCallbacks(hideBar);
         bar.setAlpha(0f);
         adapter.notifyDataSetChanged();
@@ -245,8 +307,18 @@ public class MainActivity extends Activity {
     }
 
     private void closeMenu() {
-        menu.animate().alpha(0f).translationX(-dp(40)).setDuration(150)
+        closeGuide();
+        menu.animate().alpha(0f).setDuration(150)
                 .withEndAction(() -> menu.setVisibility(View.GONE)).start();
+    }
+
+    /** Marks the selected channel row (and only it) as highlighted. */
+    private void highlight() {
+        int selected = list.getSelectedItemPosition();
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View child = list.getChildAt(i);
+            child.setActivated(list.getFirstVisiblePosition() + i == selected);
+        }
     }
 
     /** Selects the first channel of the next (+1) or previous (-1) group. */
@@ -304,9 +376,8 @@ public class MainActivity extends Activity {
         public View getView(int position, View convert, ViewGroup parent) {
             Object row = rows.get(position);
             if (row instanceof String) {
-                TextView h = convert instanceof TextView ? (TextView) convert : text(13, 500, 0x99FFFFFF);
-                String ar = ARABIC.get(row);
-                h.setText(((String) row).toUpperCase(Locale.ROOT) + (ar == null ? "" : "  ·  " + ar));
+                TextView h = convert instanceof TextView ? (TextView) convert : text(15, 600, 0x99FFFFFF);
+                h.setText(((String) row).toUpperCase(Locale.ROOT));
                 h.setLetterSpacing(0.12f);
                 h.setPadding(dp(12), dp(position == 0 ? 4 : 18), 0, dp(8));
                 return h;
@@ -319,15 +390,17 @@ public class MainActivity extends Activity {
                 convert = holder.build();
             }
             holder.bind((Integer) row);
+            convert.setActivated(position == list.getSelectedItemPosition());
             return convert;
         }
     }
 
-    /** number · logo · name, and a dot on the channel that is playing. */
+    /** number · logo · name with the programme on air and its progress, and a dot on the channel that is playing. */
     private final class RowHolder {
-        TextView number, name;
+        TextView number, name, onAir;
         ImageView logo;
-        View playing;
+        View playing, done, left;
+        LinearLayout progress;
         String logoUrl;
 
         View build() {
@@ -335,14 +408,13 @@ public class MainActivity extends Activity {
             r.setGravity(Gravity.CENTER_VERTICAL);
             r.setPadding(dp(12), dp(8), dp(14), dp(8));
             r.setMinimumHeight(dp(56));
-            ColorStateList fg = new ColorStateList(new int[][] {{android.R.attr.state_selected}, {}},
-                    new int[] {0xFF111111, 0xFFFFFFFF});
-            ColorStateList dim = new ColorStateList(new int[][] {{android.R.attr.state_selected}, {}},
-                    new int[] {0x99111111, 0x80FFFFFF});
-            number = text(14, 500, 0);
+            r.setBackgroundResource(R.drawable.row_bg);
+            ColorStateList fg = getColorStateList(R.color.row_text);
+            ColorStateList dim = getColorStateList(R.color.row_text_dim);
+            number = text(15, 500, 0);
             number.setTextColor(dim);
             number.setGravity(Gravity.END);
-            r.addView(number, new LinearLayout.LayoutParams(dp(26), -2));
+            r.addView(number, new LinearLayout.LayoutParams(dp(30), -2));
             FrameLayout logoBox = new FrameLayout(MainActivity.this);
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(dp(8));
@@ -356,11 +428,31 @@ public class MainActivity extends Activity {
             llp.leftMargin = dp(12);
             llp.rightMargin = dp(14);
             r.addView(logoBox, llp);
-            name = text(17, 500, 0);
+            LinearLayout texts = new LinearLayout(MainActivity.this);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            name = text(19, 600, 0);
             name.setTextColor(fg);
             name.setSingleLine(true);
             name.setEllipsize(TextUtils.TruncateAt.END);
-            r.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
+            texts.addView(name);
+            onAir = text(15, 500, 0);
+            onAir.setTextColor(dim);
+            onAir.setSingleLine(true);
+            onAir.setEllipsize(TextUtils.TruncateAt.END);
+            onAir.setPadding(0, dp(3), 0, 0);
+            texts.addView(onAir);
+            progress = new LinearLayout(MainActivity.this);
+            done = new View(MainActivity.this);
+            done.setBackgroundColor(accent);
+            left = new View(MainActivity.this);
+            left.setBackgroundTintList(getColorStateList(R.color.row_track));
+            left.setBackground(new ColorDrawable(0xFFFFFFFF));
+            progress.addView(done, new LinearLayout.LayoutParams(0, -1, 0f));
+            progress.addView(left, new LinearLayout.LayoutParams(0, -1, 1f));
+            LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-1, dp(2));
+            plp.topMargin = dp(5);
+            texts.addView(progress, plp);
+            r.addView(texts, new LinearLayout.LayoutParams(0, -2, 1f));
             playing = new View(MainActivity.this);
             GradientDrawable dot = new GradientDrawable();
             dot.setShape(GradientDrawable.OVAL);
@@ -376,6 +468,21 @@ public class MainActivity extends Activity {
             number.setText(String.valueOf(index + 1));
             name.setText(c.name);
             playing.setVisibility(index == current ? View.VISIBLE : View.INVISIBLE);
+            List<Epg.Programme> today = guide.get(c.id);
+            long now = System.currentTimeMillis();
+            int on = Epg.onAir(today, now);
+            if (on >= 0) {
+                Epg.Programme p = today.get(on);
+                onAir.setText(p.title);
+                onAir.setVisibility(View.VISIBLE);
+                ((LinearLayout.LayoutParams) done.getLayoutParams()).weight = now - p.start;
+                ((LinearLayout.LayoutParams) left.getLayoutParams()).weight = p.stop - now;
+                progress.requestLayout();
+                progress.setVisibility(View.VISIBLE);
+            } else {
+                onAir.setVisibility(View.GONE);
+                progress.setVisibility(View.GONE);
+            }
             if (!c.logo.equals(logoUrl)) {
                 logoUrl = c.logo;
                 logo.setImageDrawable(null);
@@ -403,10 +510,21 @@ public class MainActivity extends Activity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.setPadding(dp(18), 0, 0, 0);
-        barName = text(24, 500, 0xFFFFFFFF);
-        barGroup = text(15, 400, 0xA6FFFFFF);
+        barName = text(24, 600, 0xFFFFFFFF);
+        barGroup = text(15, 500, 0xA6FFFFFF);
+        barNow = text(16, 600, 0xE6FFFFFF);
+        barNow.setPadding(0, dp(8), 0, 0);
+        barNext = text(15, 500, 0x99FFFFFF);
+        barNext.setPadding(0, dp(3), 0, 0);
+        for (TextView t : new TextView[] {barNow, barNext}) {
+            t.setSingleLine(true);
+            t.setEllipsize(TextUtils.TruncateAt.END);
+            t.setMaxWidth(dp(560));
+        }
         texts.addView(barName);
         texts.addView(barGroup);
+        texts.addView(barNow);
+        texts.addView(barNext);
         bar.addView(texts);
         bar.setAlpha(0f);
         FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
@@ -421,7 +539,7 @@ public class MainActivity extends Activity {
         final ChannelList.Channel c = channels.get(index);
         prefs.edit().putString("last", c.id).apply();
         adapter.notifyDataSetChanged();
-        message.setText("Loading…");
+        message.setText(R.string.loading);
         message.setVisibility(View.VISIBLE);
         if (!menuOpen()) showBar(c, index);
 
@@ -443,7 +561,7 @@ public class MainActivity extends Activity {
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_READY) message.setVisibility(View.GONE);
                 else if (state == Player.STATE_BUFFERING) {
-                    message.setText("Loading…");
+                    message.setText(R.string.loading);
                     message.setVisibility(View.VISIBLE);
                 }
             }
@@ -456,7 +574,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPlayerError(PlaybackException e) {
                 Log.w(TAG, c.name + ": " + e.getErrorCodeName());
-                message.setText(c.name + " isn't available right now.\nUp / Down for another channel, OK for the list.");
+                message.setText(getString(R.string.unavailable, c.name));
                 message.setVisibility(View.VISIBLE);
             }
         });
@@ -507,8 +625,11 @@ public class MainActivity extends Activity {
 
     private void showBar(ChannelList.Channel c, int index) {
         barName.setText(c.name);
-        String ar = ARABIC.get(c.group);
-        barGroup.setText((index + 1) + "  ·  " + c.group + (ar == null ? "" : "  ·  " + ar));
+        barGroup.setText((index + 1) + "  ·  " + c.group);
+        List<Epg.Programme> today = guide.get(c.id);
+        long now = System.currentTimeMillis();
+        showProgramme(barNow, R.string.guide_now, today, Epg.onAir(today, now));
+        showProgramme(barNext, R.string.guide_next, today, Epg.next(today, now));
         barLogo.setImageDrawable(null);
         loadLogo(c.logo, barLogo::setImageBitmap);
         bar.animate().cancel();
@@ -517,11 +638,112 @@ public class MainActivity extends Activity {
         main.postDelayed(hideBar, BAR_MS);
     }
 
+    private void showProgramme(TextView view, int label, List<Epg.Programme> list, int index) {
+        if (index < 0) {
+            view.setVisibility(View.GONE);
+            return;
+        }
+        Epg.Programme p = list.get(index);
+        view.setText(getString(label) + "  " + clock.format(new Date(p.start)) + "  " + p.title);
+        view.setVisibility(View.VISIBLE);
+    }
+
+    // ---- guide (today's programmes of one channel) ----------------------------------------------
+
+    private void buildGuide() {
+        guidePanel = new LinearLayout(this);
+        guidePanel.setOrientation(LinearLayout.VERTICAL);
+        guidePanel.setPadding(dp(24), dp(36), dp(24), dp(24));
+        guidePanel.setBackgroundColor(0xFF0B0D10);
+        guidePanel.setVisibility(View.GONE);
+        guideTitle = text(20, 600, 0xFFFFFFFF);
+        guideTitle.setPadding(dp(12), 0, 0, dp(14));
+        guidePanel.addView(guideTitle);
+        guideList = new ListView(this);
+        guideList.setAdapter(guideAdapter);
+        guideList.setDivider(null);
+        guideList.setVerticalScrollBarEnabled(false);
+        GradientDrawable sel = new GradientDrawable();
+        sel.setCornerRadius(dp(12));
+        sel.setColor(0x33FFFFFF);
+        guideList.setSelector(sel);
+        guideList.setOnItemClickListener((parent, view, position, id) -> closeGuide());
+        guideList.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                closeGuide();
+                return true;
+            }
+            return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
+        });
+        guidePanel.addView(guideList, new LinearLayout.LayoutParams(-1, 0, 1f));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -1, Gravity.START);
+        lp.leftMargin = dp(400);
+        root.addView(guidePanel, lp);
+    }
+
+    private boolean guideOpen() {
+        return guidePanel.getVisibility() == View.VISIBLE;
+    }
+
+    /** Opens the guide next to the channel list, scrolled to the programme on air. */
+    private void openGuide(int index) {
+        ChannelList.Channel c = channels.get(index);
+        List<Epg.Programme> today = guide.get(c.id);
+        guideItems = today != null ? today : Collections.emptyList();
+        guideTitle.setText(guideItems.isEmpty() ? c.name + "  ·  " + getString(R.string.guide_empty) : c.name);
+        guideAdapter.notifyDataSetChanged();
+        guidePanel.setVisibility(View.VISIBLE);
+        if (guideItems.isEmpty()) return;
+        long now = System.currentTimeMillis();
+        int on = Epg.onAir(guideItems, now);
+        if (on < 0) on = Math.max(0, Epg.next(guideItems, now));
+        guideList.requestFocus();
+        guideList.setSelectionFromTop(on, dp(80));
+    }
+
+    private void closeGuide() {
+        if (!guideOpen()) return;
+        guidePanel.setVisibility(View.GONE);
+        list.requestFocus();
+    }
+
+    private final class GuideAdapter extends BaseAdapter {
+        @Override
+        public int getCount() {
+            return guideItems.size();
+        }
+
+        @Override
+        public Object getItem(int position) {
+            return guideItems.get(position);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public View getView(int position, View convert, ViewGroup parent) {
+            TextView t = convert instanceof TextView ? (TextView) convert : text(16, 500, 0);
+            Epg.Programme p = guideItems.get(position);
+            long now = System.currentTimeMillis();
+            boolean onAir = p.start <= now && now < p.stop;
+            t.setText(clock.format(new Date(p.start)) + "   " + p.title);
+            t.setTextColor(onAir ? accent : p.stop <= now ? 0x66FFFFFF : 0xE6FFFFFF);
+            t.setSingleLine(true);
+            t.setEllipsize(TextUtils.TruncateAt.END);
+            t.setPadding(dp(12), dp(10), dp(12), dp(10));
+            return t;
+        }
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (menuOpen()) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
-                closeMenu();
+                if (guideOpen()) closeGuide();
+                else closeMenu();
                 return true;
             }
             return super.onKeyDown(keyCode, event);
@@ -603,7 +825,9 @@ public class MainActivity extends Activity {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         if (color != 0) t.setTextColor(color);
         t.setIncludeFontPadding(false);
-        t.setTypeface(Build.VERSION.SDK_INT >= 28 ? Typeface.create(font, weight, false) : font);
+        // Outfit is a variable font: its weight comes from the wght axis, which Typeface.create leaves at Thin.
+        t.setTypeface(font);
+        t.setFontVariationSettings("'wght' " + weight);
         return t;
     }
 

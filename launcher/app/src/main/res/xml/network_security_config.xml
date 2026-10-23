@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 trusts only ISRG Root X1. Let's Encrypt's newer ECDSA certificates chain to ISRG Root X2, whose
+     cross-sign by X1 has expired, so HTTPS to a self-hosted server such as Jellyfin failed the handshake. -->
+<network-security-config>
+    <base-config>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/isrg_root_x2" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -42,7 +42,12 @@ android {
 
 dependencies {
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
-    implementation 'androidx.dynamicanimation:dynamicanimation:1.0.0'
-    // Test only (never in the APK): plain JVM tests for the module card validators, src/test.
+    // QR codes for setting up an authenticator app (profile lock); R8 keeps only the encoder.
+    implementation 'com.google.zxing:core:3.5.3'
+    // Test only (never in the APK): plain JVM tests, src/test.
     testImplementation 'junit:junit:4.13.2'
+    // The real org.json: android.jar only has stubs on the JVM.
+    testImplementation 'org.json:json:20231013'
+    // An XmlPullParser for the feed tests; Android brings its own.
+    testImplementation 'net.sf.kxml:kxml2:2.3.0'
 }

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A content card, Google TV style: the picture with its focus outline, the title and a second line under it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:paddingTop="8dp"
+    android:paddingEnd="@dimen/card_gap"
+    android:orientation="vertical"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <FrameLayout
+        android:id="@+id/shelfCard"
+        android:layout_width="@dimen/card_width"
+        android:layout_height="@dimen/card_height"
+        android:background="@drawable/shelf_card"
+        android:foreground="@drawable/shelf_focus"
+        android:focusable="true"
+        android:clickable="true">
+
+        <View
+            android:id="@+id/shelfSkeleton"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/shelf_skeleton" />
+
+        <ImageView
+            android:id="@+id/shelfImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+
+        <!-- On air now (sports) or a new episode. -->
+        <TextView
+            android:id="@+id/shelfBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="6dp"
+            android:paddingStart="5dp"
+            android:paddingEnd="5dp"
+            android:paddingTop="1dp"
+            android:paddingBottom="1dp"
+            android:background="#FFE5484D"
+            android:textColor="#FFFFFFFF"
+            android:textSize="9sp"
+            android:fontFamily="@font/outfit"
+            android:fontVariationSettings="'wght' 600"
+            android:letterSpacing="0.06"
+            android:visibility="gone" />
+
+        <View
+            android:id="@+id/shelfProgress"
+            android:layout_width="0dp"
+            android:layout_height="3dp"
+            android:layout_gravity="bottom|start"
+            android:background="#FFE5484D" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/shelfTitle"
+        android:layout_width="@dimen/card_width"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:alpha="0.7"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:textColor="#FFFFFFFF"
+        android:textSize="13sp"
+        android:fontFamily="@font/outfit"
+        android:fontVariationSettings="'wght' 500"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:id="@+id/shelfSubtitle"
+        android:layout_width="@dimen/card_width"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:textColor="#99FFFFFF"
+        android:textSize="11sp"
+        android:fontFamily="@font/outfit"
+        android:fontVariationSettings="'wght' 400"
+        android:includeFontPadding="false" />
+</LinearLayout>

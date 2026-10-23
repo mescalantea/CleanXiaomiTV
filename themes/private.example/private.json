@@ -1,0 +1,15 @@
+{
+  "jellyfin_url": "https://jellyfin.example.com",
+  "jellyfin_api_key": "your-api-key",
+  "jellyfin_user_id": "your-user-id",
+  "youtube_channels": ["UCxxxxxxxxxxxxxxxxxxxxxx"],
+  "youtube_api_key": "your-youtube-data-api-key",
+  "tv_channels": ["La1.TV", "La2.TV"],
+  "profiles": [
+    {"name": "Alex", "jellyfin_user_id": "alex-user-id", "youtube_channel_id": "UCbbbbbbbbbbbbbbbbbbbbbb", "youtube_channels": ["UCaaaaaaaaaaaaaaaaaaaaaa"]},
+    {"name": "Sam", "jellyfin_user_id": "sam-user-id", "photo": "https://example.com/sam.jpg"}
+  ],
+  "weather_latitude": "40.4168",
+  "weather_longitude": "-3.7038",
+  "weather_place": "Madrid"
+}

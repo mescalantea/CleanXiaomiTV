@@ -10,12 +10,12 @@
     <string name="launcher_name" translatable="false">CleanXiaomiTV</string>
 
 
-    <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
+    <!-- Apps first in the apps grid, in this order, until the order is changed on the TV. Missing apps are skipped. -->
     <string-array name="dock_apps">
+        <item>org.jellyfin.androidtv</item>
         <item>com.google.android.youtube.tv</item>
-        <item>net.mbc.shahidTV</item>
-        <item>com.nuvio.tv</item>
-        <item>com.sportzx.live</item>
+        <item>com.amazon.amazonvideo.livingroom</item>
+        <item>com.majnioui.tv.channels</item>
     </string-array>
 
     <!-- Apps never shown as tiles (e.g. the Live TV app, which the Inputs menu already covers). -->
@@ -42,22 +42,8 @@
          (XGIMI projectors: com.xgimi.action.hdmiPlayer). Leave empty to omit. -->
     <string name="input_action" translatable="false"></string>
 
-    <!-- Show the Solar Hijri (Shamsi) date used in Iran and Afghanistan, e.g. "27 Mehr 1405", above the
-         Gregorian date. -->
-    <bool name="shamsi_date">false</bool>
-    <!-- Adhkar at the bottom of the Clock screensaver, a new one every minute (res/values/athkar.xml). -->
-    <bool name="dream_athkar">true</bool>
-    <!-- Today's prayer times at the weather coordinates below, from Aladhan (free, no account or key; only the
-         coordinates, the date and the method are sent, once a day). home_prayer: the next prayer and a
-         countdown in a glass pill under the clock. dream_prayer: the day's five times on the Clock screensaver.
-         These two and dream_athkar can also be switched on the TV: Settings pill, then the rows at the bottom. -->
-    <bool name="home_prayer">true</bool>
-    <bool name="dream_prayer">true</bool>
     <!-- An analog clock on the Clock screensaver instead of the digital one. Also a switch in the Settings menu. -->
     <bool name="dream_analog">true</bool>
-    <!-- Aladhan calculation method: 21 Morocco, 3 Muslim World League, 2 ISNA (North America), 4 Umm al-Qura,
-         5 Egypt, 12 France, 13 Turkey; the full list is on aladhan.com/calculation-methods. -->
-    <integer name="prayer_method">21</integer>
     <!-- Photos of the day from Bing behind the Clock screensaver, a new one every 3 minutes, kept on the TV
          for offline use. false: the dark glow only, and the screensaver makes no network requests besides
          the weather. -->
@@ -66,8 +52,8 @@
          pauses, hold OK opens the app) and the song on the Clock screensaver. Needs notification access,
          which the install script grants. -->
     <bool name="now_playing">true</bool>
-    <!-- Today's photo of the day (Bing, the same as the screensaver) behind the home screen, with glass
-         buttons and dock over it. A theme's wallpaper takes its place. false: the plain background. -->
+    <!-- Today's photo of the day (Bing, the same as the screensaver) behind the home screen, under the
+         buttons and sections. A theme's wallpaper takes its place. false: the plain background. -->
     <bool name="home_photo">true</bool>
     <!-- Optional VPN app the network pill opens (hold the pill for Wi-Fi settings), e.g. the package of the
          VPN you use. Empty: the pill opens Wi-Fi settings. The green VPN badge shows for any VPN either way;
@@ -75,30 +61,14 @@
     <string name="vpn_app" translatable="false"></string>
     <!-- Weather above the date, from Open-Meteo (free, no account or key; only these coordinates are
          sent). Leave the latitude empty to hide it. -->
-    <string name="weather_latitude" translatable="false">33.5731</string>
-    <string name="weather_longitude" translatable="false">-7.5898</string>
-    <string name="weather_place" translatable="false">Casablanca</string>
-    <!-- Grid rows left visible under the dock on the home screen. 0 = dock sits at the very bottom. -->
-    <integer name="rows_below_dock">0</integer>
-    <!-- How opaque the dock band's glass is over the photo or wallpaper, 0 to 100: 100 is the solid frosted
-         band, lower lets more of the picture show through. -->
-    <integer name="dock_opacity">55</integer>
-    <!-- Advanced effects: the focused tile lifts with a shadow, zooms a little more, its picture zooms and it gets a
-         bright edge; the top buttons zoom on focus and apps open with a soft transition. Also on the TV (Settings
-         menu), which wins over this file and a theme. -->
-    <bool name="advanced_effects">false</bool>
+    <string name="weather_latitude" translatable="false">40.4168</string>
+    <string name="weather_longitude" translatable="false">-3.7038</string>
+    <string name="weather_place" translatable="false">Madrid</string>
 
-    <!-- Dock slots. Tiles are 180dp wide at 4 and shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a
-         1080p TV). -->
-    <integer name="columns">4</integer>
-    <!-- Tiles per row in the grid below the dock. More than columns gives smaller grid tiles. -->
+    <!-- Tiles per row in the apps grid. Also on the TV (Settings menu, Apps per row). -->
     <integer name="grid_columns">5</integer>
 
     <!-- "Default home" tile that opens Android's home-screen picker, for TVs whose settings have one
          (most Android TVs don't; the tile only appears when the page exists). Off by default. -->
     <bool name="show_home_settings_shortcut">false</bool>
-
-    <!-- Module cards: an app that declares a card (docs/specs/card.md) can stand in for its tile with its own
-         label, caption and glow colour, once you answer Show on the prompt. false: never look for cards or ask. -->
-    <bool name="module_cards">true</bool>
 </resources>
