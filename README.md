@@ -2,7 +2,7 @@
 
 <p align="center">My Xiaomi TV, minus the ads: a clean home screen, a richer screensaver and live channels.</p>
 
-![The home screen: today's photo, the clock and weather, the song playing under the top buttons, and the dock](docs/screenshot-home.png)
+![The home screen: today's photo, the clock and weather, the song playing under the top buttons, and the apps](docs/screenshot-home.png)
 
 <table>
   <tr>
@@ -23,8 +23,7 @@
 
 - **Debloat**: [`debloat.txt`](debloat.txt) disables 38 packages: Xiaomi and Google telemetry, PatchWall and the ad rows, demo mode, duplicate cast services, preloaded apps and unused system leftovers. Nothing is uninstalled, and one command restores everything.
 - **Ad-blocking DNS**: the installer points the TV's Private DNS at [AdGuard](https://adguard-dns.io), so ads and trackers are blocked in every app.
-- **Home screen**: today's photo of the day behind everything, with flat top buttons and menus over it and a focused tile that zooms a little with a white outline, as on Google TV; the weather next to the clock; a dock of four apps and five smaller tiles per row below it, out of sight until you press Down. Hold OK on a tile to move it. English and Arabic.
-- **For you**: a row above the dock with what you are watching and the next episodes on your Jellyfin server, your favourite live channels with what is on now and the coming big sports events on free channels (both from the Channels app's guide), then the latest videos of the YouTube channels you pick; OK opens them in the Jellyfin and YouTube apps. It only shows once you set it up (see [Your own values](#your-own-values)).
+- **Home screen**, Google TV style: the clock, weather and top buttons, a hero with the focused card's title, where it comes from, a few words about it and its picture, and titled sections under it: **YouTube** (the latest video of each channel you follow), **En directo** (your favourite live channels with what is on now, then the coming big sports events on free channels, both from the Channels app's guide), **Seguir viendo** (continue watching, next up and new episodes on your Jellyfin server) and **Aplicaciones** (every app, in a grid). Hold OK on a card to move its section up or down; hold OK on an app to move the app. The focused card zooms a little with a white outline; sections with nothing to show are hidden.
 - **Now playing**: while Spotify or another music app plays, a slim pill under the top buttons with the cover, song, artist and previous / play-pause / next, tinted in the cover's colour. Hold OK on it to open the app.
 - **Screensaver**: photos of the day with a slow zoom, the time and weather top left, and the song playing bottom left.
 - **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search) and **Channels** (Spanish and international live channels from [TDTChannels](https://www.tdtchannels.com)' public list of free streams).
@@ -56,7 +55,7 @@ tools/venv/bin/python -I tools/tv.py 'settings put secure screensaver_components
 
 ## Configure
 
-Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the dock apps, hidden apps, the weather city (Madrid by default), `grid_columns`, and switches for each feature (`home_photo`, `dream_photos`, `dream_analog`, `now_playing`). The analog clock switch can also be flipped on the TV: Settings pill, then the On/Off row at the bottom; that choice wins over `config.xml` and a theme. Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
+Everything is in [`launcher/app/src/main/res/values/config.xml`](launcher/app/src/main/res/values/config.xml): the apps first in the grid (`dock_apps`, until you reorder them on the TV), hidden apps, the weather city (Madrid by default), `grid_columns`, and switches for each feature (`home_photo`, `dream_photos`, `dream_analog`, `now_playing`). The analog clock switch can also be flipped on the TV: Settings pill, then the On/Off row at the bottom; that choice wins over `config.xml` and a theme. Rebuild with `launcher/build-and-install.sh`, or push a theme from [`themes/`](themes/) without rebuilding.
 
 ### Your own values
 

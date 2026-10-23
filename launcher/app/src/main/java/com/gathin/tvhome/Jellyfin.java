@@ -9,7 +9,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 
 /** "Continue watching" and "Next up" from a Jellyfin server, as shelf items. */
@@ -25,7 +27,7 @@ final class Jellyfin {
     static List<ShelfItem> resume(String server, String apiKey, String userId, String episodeFormat) throws Exception {
         String base = base(server);
         return parse(get(base + "/Users/" + URLEncoder.encode(userId, "UTF-8") + "/Items/Resume?Limit=" + LIMIT
-                + "&MediaTypes=Video&Fields=PrimaryImageAspectRatio", apiKey), base, episodeFormat);
+                + "&MediaTypes=Video&Fields=PrimaryImageAspectRatio,Overview", apiKey), base, episodeFormat);
     }
 
     /**
@@ -34,8 +36,39 @@ final class Jellyfin {
      */
     static List<ShelfItem> nextUp(String server, String apiKey, String userId, String episodeFormat) throws Exception {
         String base = base(server);
-        return parse(get(base + "/Shows/NextUp?userId=" + URLEncoder.encode(userId, "UTF-8") + "&Limit=" + LIMIT, apiKey),
+        return parse(get(base + "/Shows/NextUp?userId=" + URLEncoder.encode(userId, "UTF-8") + "&Limit=" + LIMIT
+                + "&Fields=Overview", apiKey), base, episodeFormat);
+    }
+
+    /**
+     * Recently added episodes not watched yet, of series the person has started: those in started (from
+     * continue watching and next up) and those with an episode watched. Newest first, without the ones in
+     * shown, at most LIMIT. Blocks.
+     */
+    static List<ShelfItem> newEpisodes(String server, String apiKey, String userId, String episodeFormat,
+                                       Set<String> started, Set<String> shown) throws Exception {
+        String base = base(server);
+        String user = URLEncoder.encode(userId, "UTF-8");
+        List<ShelfItem> latest = parse("{\"Items\":" + get(base + "/Users/" + user + "/Items/Latest?IncludeItemTypes=Episode"
+                + "&GroupItems=false&IsPlayed=false&Limit=40&Fields=Overview,PrimaryImageAspectRatio,DateCreated", apiKey) + "}",
                 base, episodeFormat);
+        Set<String> series = new HashSet<>(started);
+        for (ShelfItem watched : parse(get(base + "/Users/" + user + "/Items?IncludeItemTypes=Episode&IsPlayed=true"
+                + "&Recursive=true&SortBy=DatePlayed&SortOrder=Descending&Limit=100&Fields=SeriesId", apiKey), base, episodeFormat)) {
+            series.add(watched.channel);
+        }
+        return fresh(latest, series, shown, LIMIT);
+    }
+
+    /** The episodes of these series not in shown, in order, at most max, marked as new. */
+    static List<ShelfItem> fresh(List<ShelfItem> latest, Set<String> series, Set<String> shown, int max) {
+        List<ShelfItem> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>(shown);
+        for (ShelfItem i : latest) {
+            if (out.size() >= max) break;
+            if (!i.channel.isEmpty() && series.contains(i.channel) && seen.add(i.id)) out.add(i.asFresh());
+        }
+        return out;
     }
 
     private static String base(String server) {
@@ -68,7 +101,11 @@ final class Jellyfin {
             JSONObject userData = o.optJSONObject("UserData");
             int progress = userData != null && userData.has("PlayedPercentage")
                     ? (int) Math.round(userData.optDouble("PlayedPercentage")) : -1;
-            out.add(new ShelfItem(ShelfItem.Source.JELLYFIN, id, title, subtitle, image(o, base), progress, 0));
+            String image = image(o, base);
+            // The same picture, large, behind the hero.
+            String backdrop = image == null ? null : image.replace("maxHeight=360", "maxWidth=1280");
+            out.add(new ShelfItem(ShelfItem.Source.JELLYFIN, id, title, subtitle, image, progress, 0,
+                    o.optString("SeriesId", ""), o.optString("Overview", "").trim(), backdrop, false));
         }
         return out;
     }

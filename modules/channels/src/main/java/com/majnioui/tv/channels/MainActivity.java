@@ -223,11 +223,11 @@ public class MainActivity extends Activity {
                 new int[] {0xF20B0D10, 0xE60B0D10, 0xB30B0D10}));
         menu.setVisibility(View.GONE);
 
-        TextView title = text(14, 500, 0x99FFFFFF);
+        TextView title = text(15, 600, 0xCCFFFFFF);
         title.setLetterSpacing(0.22f);
         title.setText(R.string.channels_title);
         menu.addView(title);
-        menuStatus = text(13, 400, 0x66FFFFFF);
+        menuStatus = text(13, 500, 0x99FFFFFF);
         menuStatus.setPadding(0, dp(4), 0, dp(14));
         menu.addView(menuStatus);
 
@@ -278,7 +278,7 @@ public class MainActivity extends Activity {
         });
         menu.addView(list, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        TextView hint = text(12, 400, 0x59FFFFFF);
+        TextView hint = text(13, 500, 0xA6FFFFFF);
         hint.setText(R.string.menu_hint);
         hint.setPadding(0, dp(12), 0, 0);
         menu.addView(hint);

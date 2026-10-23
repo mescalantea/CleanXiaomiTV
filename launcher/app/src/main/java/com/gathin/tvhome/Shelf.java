@@ -30,26 +30,43 @@ import java.io.File;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /**
- * The "For you" row above the dock: Jellyfin's continue watching and next up, then the latest videos of
- * the configured YouTube channels. Hidden while it has nothing to show; all network work runs on its own
- * threads, so a slow or unreachable server never holds Home up.
+ * Home's content rows: YouTube (the latest video of each subscription), live TV (favourite channels, then
+ * sports on free TV) and Jellyfin (continue watching, next up, new episodes). Each row is its own horizontal
+ * list; all network work runs on the shelf's own threads, so a slow or unreachable source never holds Home up.
  */
 final class Shelf {
+    static final int ROW_YOUTUBE = 0, ROW_TV = 1, ROW_JELLYFIN = 2;
+    private static final int[][] ROW_SOURCES = {
+            {ShelfSections.YOUTUBE},
+            {ShelfSections.LIVE, ShelfSections.SPORTS},
+            {ShelfSections.RESUME, ShelfSections.NEXT_UP, ShelfSections.NEW}};
+
     interface Exits {
-        void up();
+        void up(int row);
 
-        void down();
+        void down(int row);
 
-        /** The items changed, or the first ones arrived. */
-        void changed();
+        /** A row's cards changed, or its first ones arrived. */
+        void changed(int row);
+
+        /** A card got focus (for the hero). */
+        void focused(int row, ShelfItem item);
+
+        /** OK was held on a card of this row. */
+        void longPressed(int row);
+
+        /** OK on a card; true when Home used it (moving a section) and the card should not open. */
+        boolean clicked(int row);
     }
 
     private static final String TAG = "TvHome.Shelf";
@@ -58,7 +75,7 @@ final class Shelf {
     private static final int YOUTUBE_MAX = 300;
 
     private final Activity activity;
-    private final RecyclerView list;
+    private final Row[] rows;
     private final Exits exits;
     private final String jellyfinUrl, jellyfinKey, youtubeKey;
     private String profileName, jellyfinUser, youtubeChannelId;
@@ -73,37 +90,42 @@ final class Shelf {
             return value.getByteCount();
         }
     };
-    private final Adapter adapter = new Adapter();
+    /** The hero's large pictures, apart from the posters so they don't push them out. */
+    private final LruCache<String, Bitmap> pictures = new LruCache<String, Bitmap>(6 * 1024 * 1024) {
+        @Override
+        protected int sizeOf(String key, Bitmap value) {
+            return value.getByteCount();
+        }
+    };
     private final ShelfSections sections = new ShelfSections();
-    private List<ShelfItem> items = Collections.emptyList();
     private long refreshedAt = -REFRESH_MS;
     private boolean loading;
-    private int focusedIndex;
     /** When the YouTube items on screen were fetched (wall clock), 0 for never. */
     private long youtubeAt;
     /** One soft pulse shared by every skeleton on screen; runs only while one shows. */
     private final ValueAnimator shimmer = ValueAnimator.ofFloat(0.45f, 1f);
 
-    Shelf(Activity activity, RecyclerView list, Config cfg, Config.Profile profile, Exits exits) {
+    /** @param lists one horizontal list per row, in ROW_ order */
+    Shelf(Activity activity, RecyclerView[] lists, Config cfg, Config.Profile profile, Exits exits) {
         this.activity = activity;
-        this.list = list;
         this.exits = exits;
         jellyfinUrl = cfg.jellyfinUrl;
         jellyfinKey = cfg.jellyfinApiKey;
         youtubeKey = cfg.youtubeApiKey;
-        list.setLayoutManager(new LinearLayoutManager(activity, LinearLayoutManager.HORIZONTAL, false));
-        list.setItemAnimator(null);
-        list.setAdapter(adapter);
+        rows = new Row[lists.length];
+        for (int i = 0; i < lists.length; i++) rows[i] = new Row(i, lists[i]);
         shimmer.setDuration(900);
         shimmer.setRepeatMode(ValueAnimator.REVERSE);
         shimmer.setRepeatCount(ValueAnimator.INFINITE);
         shimmer.addUpdateListener(a -> {
             boolean any = false;
-            for (int i = 0; i < list.getChildCount(); i++) {
-                View sk = list.getChildAt(i).findViewById(R.id.shelfSkeleton);
-                if (sk != null && sk.getVisibility() == View.VISIBLE) {
-                    sk.setAlpha((float) a.getAnimatedValue());
-                    any = true;
+            for (Row row : rows) {
+                for (int i = 0; i < row.list.getChildCount(); i++) {
+                    View sk = row.list.getChildAt(i).findViewById(R.id.shelfSkeleton);
+                    if (sk != null && sk.getVisibility() == View.VISIBLE) {
+                        sk.setAlpha((float) a.getAnimatedValue());
+                        any = true;
+                    }
                 }
             }
             if (!any) shimmer.cancel();
@@ -123,9 +145,9 @@ final class Shelf {
         youtubeAt = cache.isFile() ? cache.lastModified() : 0;
     }
 
-    /** Something to show, placeholders included. */
-    boolean hasItems() {
-        return !items.isEmpty();
+    /** Something to show in this row, placeholders included. */
+    boolean hasItems(int row) {
+        return !rows[row].items.isEmpty();
     }
 
     /** Switches to another person's items, dropping the current ones and fetching at once. */
@@ -133,7 +155,7 @@ final class Shelf {
         generation++;
         loading = false;
         refreshedAt = -REFRESH_MS;
-        focusedIndex = 0;
+        for (Row row : rows) row.focusedIndex = 0;
         sections.clear();
         load(profile);
         refresh();
@@ -154,6 +176,7 @@ final class Shelf {
         if (!jellyfin) {
             sections.set(ShelfSections.RESUME, Collections.emptyList());
             sections.set(ShelfSections.NEXT_UP, Collections.emptyList());
+            sections.set(ShelfSections.NEW, Collections.emptyList());
         }
         if (!youtube) sections.set(ShelfSections.YOUTUBE, Collections.emptyList());
         long now = SystemClock.elapsedRealtime();
@@ -166,6 +189,7 @@ final class Shelf {
         if (jellyfin) {
             sections.start(ShelfSections.RESUME);
             sections.start(ShelfSections.NEXT_UP);
+            sections.start(ShelfSections.NEW);
         }
         if (feeds) sections.start(ShelfSections.YOUTUBE);
         if (live) sections.start(ShelfSections.LIVE);
@@ -183,8 +207,19 @@ final class Shelf {
             if (live) post(gen, ShelfSections.LIVE, LiveTv.query(activity, channelsOnTv));
             if (sports) post(gen, ShelfSections.SPORTS, LiveTv.sports(activity));
             if (jellyfin) {
-                post(gen, ShelfSections.RESUME, jellyfin(() -> Jellyfin.resume(jellyfinUrl, jellyfinKey, user, episode)));
-                post(gen, ShelfSections.NEXT_UP, jellyfin(() -> Jellyfin.nextUp(jellyfinUrl, jellyfinKey, user, episode)));
+                List<ShelfItem> resume = jellyfin(() -> Jellyfin.resume(jellyfinUrl, jellyfinKey, user, episode));
+                post(gen, ShelfSections.RESUME, resume);
+                List<ShelfItem> next = jellyfin(() -> Jellyfin.nextUp(jellyfinUrl, jellyfinKey, user, episode));
+                post(gen, ShelfSections.NEXT_UP, next);
+                Set<String> started = new HashSet<>(), shown = new HashSet<>();
+                for (List<ShelfItem> list : Arrays.asList(resume, next)) {
+                    if (list == null) continue;
+                    for (ShelfItem i : list) {
+                        shown.add(i.id);
+                        if (!i.channel.isEmpty()) started.add(i.channel);
+                    }
+                }
+                post(gen, ShelfSections.NEW, jellyfin(() -> Jellyfin.newEpisodes(jellyfinUrl, jellyfinKey, user, episode, started, shown)));
             }
             if (feeds) {
                 List<String> channels = subscriptions
@@ -264,66 +299,22 @@ final class Shelf {
         });
     }
 
-    /** Applies the sections' rows with as few changes as possible, keeping focus on the item the user is on. */
+    /** Applies every row's cards with as few changes as possible, keeping focus on the card the user is on. */
     private void show() {
-        List<ShelfItem> old = items;
-        List<ShelfItem> fresh = sections.rows();
-        if (old.isEmpty() && fresh.isEmpty()) return;
-        View focusedChild = list.getFocusedChild();
-        int focusedAt = focusedChild != null ? list.getChildAdapterPosition(focusedChild) : RecyclerView.NO_POSITION;
-        items = fresh;
-        DiffUtil.calculateDiff(new DiffUtil.Callback() {
-            @Override
-            public int getOldListSize() {
-                return old.size();
-            }
-
-            @Override
-            public int getNewListSize() {
-                return fresh.size();
-            }
-
-            @Override
-            public boolean areItemsTheSame(int o, int n) {
-                // A placeholder turns into whatever lands at its place, so a focused one keeps its view.
-                if (old.get(o).source == ShelfItem.Source.PLACEHOLDER) return o == n;
-                return ShelfSections.key(old.get(o)).equals(ShelfSections.key(fresh.get(n)));
-            }
-
-            @Override
-            public boolean areContentsTheSame(int o, int n) {
-                ShelfItem a = old.get(o), b = fresh.get(n);
-                return a.source == b.source && a.id.equals(b.id) && a.title.equals(b.title) && a.subtitle.equals(b.subtitle)
-                        && a.progress == b.progress && java.util.Objects.equals(a.image, b.image);
-            }
-        }, false).dispatchUpdatesTo(adapter);
-        focusedIndex = Math.min(focusedIndex, Math.max(0, items.size() - 1));
-        if (focusedAt != RecyclerView.NO_POSITION && gone(old.get(focusedAt), focusedAt, fresh)) {
-            // If the focused card went away, take focus back to the same place once the row is laid out.
-            list.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-                @Override
-                public void onGlobalLayout() {
-                    list.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                    if (list.hasFocus() || items.isEmpty() || list.getVisibility() != View.VISIBLE) return;
-                    focusedIndex = Math.min(focusedAt, items.size() - 1);
-                    focus();
-                }
-            });
-        }
-        exits.changed();
+        for (Row row : rows) row.show(sections.rows(ROW_SOURCES[row.id]));
     }
 
-    /** Back to the first card, as after Home. */
+    /** Every row back to its first card, as after Home. */
     void toStart() {
-        focusedIndex = 0;
-        list.scrollToPosition(0);
+        for (Row row : rows) {
+            row.focusedIndex = 0;
+            row.list.scrollToPosition(0);
+        }
     }
 
-    /** Puts focus on the item focused last, or the first one. */
-    void focus() {
-        RecyclerView.ViewHolder vh = list.findViewHolderForAdapterPosition(focusedIndex);
-        if (vh == null) vh = list.findViewHolderForAdapterPosition(0);
-        if (vh != null) vh.itemView.findViewById(R.id.shelfCard).requestFocus();
+    /** Puts focus on the row's card focused last, or its first one. */
+    void focus(int row) {
+        rows[row].focus();
     }
 
     void stop() {
@@ -397,6 +388,28 @@ final class Shelf {
         });
     }
 
+    /** A card's large picture for the hero, about width wide; calls back on the main thread, with null on failure. */
+    void picture(ShelfItem item, int width, Consumer<Bitmap> done) {
+        final String url = item.backdrop;
+        Bitmap cached = pictures.get(url);
+        if (cached != null) {
+            done.accept(cached);
+            return;
+        }
+        final String key = item.source == ShelfItem.Source.JELLYFIN ? jellyfinKey : null;
+        // Not every YouTube video has a full-size still; the smaller one always exists.
+        final String fallback = item.source == ShelfItem.Source.YOUTUBE ? "https://i.ytimg.com/vi/" + item.id + "/hqdefault.jpg" : null;
+        io.execute(() -> {
+            Bitmap bmp = download(url, key, width);
+            if (bmp == null && fallback != null) bmp = download(fallback, null, width);
+            final Bitmap got = bmp;
+            handler.post(() -> {
+                if (got != null) pictures.put(url, got);
+                done.accept(got);
+            });
+        });
+    }
+
     private void loadPoster(ShelfItem item, ImageView view, View skeleton) {
         Bitmap cached = posters.get(item.image);
         if (cached != null) {
@@ -406,7 +419,7 @@ final class Shelf {
         }
         final String url = item.image;
         final boolean jellyfin = item.source == ShelfItem.Source.JELLYFIN;
-        final int width = Math.round(160 * activity.getResources().getDisplayMetrics().density);
+        final int width = Math.round(200 * activity.getResources().getDisplayMetrics().density);
         io.execute(() -> {
             Bitmap bmp = download(url, jellyfin ? jellyfinKey : null, width);
             if (bmp == null) return;
@@ -451,18 +464,103 @@ final class Shelf {
         }
     }
 
+    /** One horizontal row of cards, with its own focus memory. */
+    private final class Row {
+        final int id;
+        final RecyclerView list;
+        final Adapter adapter = new Adapter(this);
+        List<ShelfItem> items = Collections.emptyList();
+        int focusedIndex;
+
+        Row(int id, RecyclerView list) {
+            this.id = id;
+            this.list = list;
+            list.setLayoutManager(new LinearLayoutManager(activity, LinearLayoutManager.HORIZONTAL, false));
+            list.setItemAnimator(null);
+            list.setAdapter(adapter);
+        }
+
+        void show(List<ShelfItem> fresh) {
+            List<ShelfItem> old = items;
+            if (old.isEmpty() && fresh.isEmpty()) return;
+            View focusedChild = list.getFocusedChild();
+            int focusedAt = focusedChild != null ? list.getChildAdapterPosition(focusedChild) : RecyclerView.NO_POSITION;
+            items = fresh;
+            DiffUtil.calculateDiff(new DiffUtil.Callback() {
+                @Override
+                public int getOldListSize() {
+                    return old.size();
+                }
+
+                @Override
+                public int getNewListSize() {
+                    return fresh.size();
+                }
+
+                @Override
+                public boolean areItemsTheSame(int o, int n) {
+                    // A placeholder turns into whatever lands at its place, so a focused one keeps its view.
+                    if (old.get(o).source == ShelfItem.Source.PLACEHOLDER) return o == n;
+                    return ShelfSections.key(old.get(o)).equals(ShelfSections.key(fresh.get(n)));
+                }
+
+                @Override
+                public boolean areContentsTheSame(int o, int n) {
+                    ShelfItem a = old.get(o), b = fresh.get(n);
+                    return a.source == b.source && a.id.equals(b.id) && a.title.equals(b.title) && a.subtitle.equals(b.subtitle)
+                            && a.progress == b.progress && a.fresh == b.fresh && java.util.Objects.equals(a.image, b.image);
+                }
+            }, false).dispatchUpdatesTo(adapter);
+            focusedIndex = Math.min(focusedIndex, Math.max(0, items.size() - 1));
+            if (focusedAt != RecyclerView.NO_POSITION && gone(old.get(focusedAt), focusedAt, fresh)) {
+                // If the focused card went away, take focus back to the same place once the row is laid out.
+                list.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+                    @Override
+                    public void onGlobalLayout() {
+                        list.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                        if (list.hasFocus() || items.isEmpty() || !list.isShown()) return;
+                        focusedIndex = Math.min(focusedAt, items.size() - 1);
+                        focus();
+                    }
+                });
+            }
+            exits.changed(id);
+        }
+
+        void focus() {
+            RecyclerView.ViewHolder vh = list.findViewHolderForAdapterPosition(focusedIndex);
+            if (vh != null) {
+                vh.itemView.findViewById(R.id.shelfCard).requestFocus();
+                return;
+            }
+            // Not laid out (scrolled away): bring it into view, then focus it.
+            final int at = focusedIndex;
+            list.scrollToPosition(at);
+            list.post(() -> {
+                RecyclerView.ViewHolder h = list.findViewHolderForAdapterPosition(at);
+                if (h == null) h = list.findViewHolderForAdapterPosition(0);
+                if (h != null) h.itemView.findViewById(R.id.shelfCard).requestFocus();
+            });
+        }
+    }
+
     private final class Adapter extends RecyclerView.Adapter<Holder> {
+        private final Row row;
+
+        Adapter(Row row) {
+            this.row = row;
+        }
+
         @NonNull
         @Override
         public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            return new Holder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_shelf, parent, false));
+            return new Holder(LayoutInflater.from(parent.getContext()).inflate(R.layout.item_shelf, parent, false), row);
         }
 
         @Override
         public void onBindViewHolder(@NonNull Holder h, int position) {
-            ShelfItem item = items.get(position);
+            ShelfItem item = row.items.get(position);
             boolean placeholder = item.source == ShelfItem.Source.PLACEHOLDER;
-            h.scrim.setVisibility(placeholder ? View.GONE : View.VISIBLE);
             h.skeleton.setVisibility(placeholder || item.image != null ? View.VISIBLE : View.GONE);
             if (h.skeleton.getVisibility() == View.VISIBLE && !shimmer.isStarted()) shimmer.start();
             h.title.setText(item.title);
@@ -477,28 +575,31 @@ final class Shelf {
             h.image.setTag(item.image);
             // Channel logos are shown whole, small, above the names; posters fill the card.
             boolean logo = item.source == ShelfItem.Source.LIVE || item.source == ShelfItem.Source.SPORT;
-            h.badge.setVisibility(item.source == ShelfItem.Source.SPORT && item.progress >= 0 ? View.VISIBLE : View.GONE);
+            boolean live = item.source == ShelfItem.Source.SPORT && item.progress >= 0;
+            h.badge.setVisibility(live || item.fresh ? View.VISIBLE : View.GONE);
+            h.badge.setText(live ? R.string.shelf_live : R.string.shelf_new);
             h.card.setContentDescription(item.source == ShelfItem.Source.SPORT
                     ? activity.getString(R.string.shelf_sports) + ": " + item.title + ", " + item.subtitle : null);
             float d = activity.getResources().getDisplayMetrics().density;
+            int pad = logo ? Math.round(24 * d) : 0;
             h.image.setScaleType(logo ? ImageView.ScaleType.FIT_CENTER : ImageView.ScaleType.CENTER_CROP);
-            h.image.setPadding(logo ? Math.round(36 * d) : 0, logo ? Math.round(10 * d) : 0,
-                    logo ? Math.round(36 * d) : 0, logo ? Math.round(36 * d) : 0);
+            h.image.setPadding(pad * 2, pad, pad * 2, pad);
             if (item.image != null) loadPoster(item, h.image, h.skeleton);
         }
 
         @Override
         public int getItemCount() {
-            return items.size();
+            return row.items.size();
         }
     }
 
     private final class Holder extends RecyclerView.ViewHolder {
-        final View card, progress, skeleton, scrim, badge;
+        final View card, progress, skeleton;
+        final TextView badge;
         final ImageView image;
         final TextView title, subtitle;
 
-        Holder(View v) {
+        Holder(View v, Row row) {
             super(v);
             card = v.findViewById(R.id.shelfCard);
             image = v.findViewById(R.id.shelfImage);
@@ -506,34 +607,39 @@ final class Shelf {
             subtitle = v.findViewById(R.id.shelfSubtitle);
             progress = v.findViewById(R.id.shelfProgress);
             skeleton = v.findViewById(R.id.shelfSkeleton);
-            scrim = v.findViewById(R.id.shelfScrim);
             badge = v.findViewById(R.id.shelfBadge);
             card.setClipToOutline(true);
             card.setOnClickListener(view -> {
                 int pos = getBindingAdapterPosition();
-                if (pos != RecyclerView.NO_POSITION) launch(items.get(pos));
+                if (pos != RecyclerView.NO_POSITION && !exits.clicked(row.id)) launch(row.items.get(pos));
+            });
+            card.setOnLongClickListener(view -> {
+                exits.longPressed(row.id);
+                return true;
             });
             card.setOnFocusChangeListener((view, focused) -> {
-                if (focused) {
-                    int pos = getBindingAdapterPosition();
-                    if (pos != RecyclerView.NO_POSITION) focusedIndex = pos;
+                int pos = getBindingAdapterPosition();
+                if (focused && pos != RecyclerView.NO_POSITION) {
+                    row.focusedIndex = pos;
+                    exits.focused(row.id, row.items.get(pos));
                 }
                 view.animate().scaleX(focused ? 1.08f : 1f).scaleY(focused ? 1.08f : 1f).setDuration(160).start();
+                title.animate().alpha(focused ? 1f : 0.7f).setDuration(160).start();
             });
             card.setOnKeyListener((view, keyCode, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
                 int pos = getBindingAdapterPosition();
                 switch (keyCode) {
                     case KeyEvent.KEYCODE_DPAD_UP:
-                        exits.up();
+                        exits.up(row.id);
                         return true;
                     case KeyEvent.KEYCODE_DPAD_DOWN:
-                        exits.down();
+                        exits.down(row.id);
                         return true;
                     case KeyEvent.KEYCODE_DPAD_LEFT:
                         return pos == 0;
                     case KeyEvent.KEYCODE_DPAD_RIGHT:
-                        return pos == items.size() - 1;
+                        return pos == row.items.size() - 1;
                     default:
                         return false;
                 }

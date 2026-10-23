@@ -4,20 +4,7 @@
     <string name="inputs">Entradas</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Ajustes</string>
-    <string name="edit_dock">Editar barra</string>
-    <string name="edit_dock_hint">Elige hasta %1$d apps. OK cambia una app; Izquierda/Derecha la mueve.</string>
-    <string name="dock_slot">Hueco %1$d</string>
-    <string name="dock_replace_hint">OK cambiar</string>
-    <string name="add_app_to_dock">Añadir app</string>
-    <string name="remove_highlighted">Quitar la app marcada</string>
-    <string name="dock_done">Listo</string>
-    <string name="replace_dock_app">Cambiar app de la barra</string>
-    <string name="remove_from_dock">Quitar de la barra</string>
-    <string name="choose_tv_app_hint">Apps de TV instaladas</string>
-    <string name="no_tv_apps">No hay más apps de TV</string>
-    <string name="edit_app_order">Ordenar apps</string>
-    <string name="edit_app_order_hint">Todas las apps bajo la barra. Izquierda/Derecha mueve la app marcada.</string>
-    <string name="reorder_hint">MOVER  •  FLECHAS PARA MOVER  •  OK / ATRÁS SALIR</string>
+    <string name="reorder_hint">MOVER  •  FLECHAS MUEVEN LA APP, ARRIBA / ABAJO EN EL BORDE MUEVEN LA SECCIÓN  •  OK / ATRÁS SALIR</string>
     <string name="system_settings">Ajustes de Android</string>
     <string name="choose_input">Entradas</string>
     <string name="connected">Conectado</string>
@@ -43,13 +30,16 @@
     <string name="toggle_dream_analog">Reloj analógico en el salvapantallas</string>
     <string name="toggle_on">Sí</string>
     <string name="toggle_off">No</string>
-    <string name="dock_list">Apps de la barra y su orden</string>
-    <string name="dock_edit_place_hint">EDITAR BARRA  •  ELIGE UN HUECO Y PULSA OK  •  ATRÁS SALIR</string>
-    <string name="dock_edit_app_hint">EDITAR BARRA  •  ELIGE LA APP PARA ESTE HUECO Y PULSA OK  •  ATRÁS</string>
     <string name="apps_per_row">Apps por fila</string>
-    <string name="shelf_title">Para ti</string>
     <string name="shelf_episode" formatted="false">T%1$dE%2$d</string>
     <string name="profiles">Perfiles</string>
     <string name="shelf_live">EN DIRECTO</string>
     <string name="shelf_sports">Deportes en abierto</string>
+    <string name="section_youtube">YouTube</string>
+    <string name="section_tv">En directo</string>
+    <string name="section_jellyfin">Seguir viendo</string>
+    <string name="section_apps">Aplicaciones</string>
+    <string name="section_move_hint">MOVER SECCIÓN  •  ARRIBA / ABAJO  •  OK / ATRÁS LISTO</string>
+    <string name="hero_now">ahora</string>
+    <string name="shelf_new">NUEVO</string>
 </resources>

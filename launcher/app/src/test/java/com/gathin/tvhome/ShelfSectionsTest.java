@@ -11,6 +11,9 @@ import static org.junit.Assert.assertTrue;
 
 public class ShelfSectionsTest {
 
+    private static final int[] ALL = {ShelfSections.RESUME, ShelfSections.NEXT_UP, ShelfSections.NEW,
+            ShelfSections.LIVE, ShelfSections.SPORTS, ShelfSections.YOUTUBE};
+
     private static ShelfItem jf(String id) {
         return new ShelfItem(ShelfItem.Source.JELLYFIN, id, id, "", null, -1, 0);
     }
@@ -31,11 +34,11 @@ public class ShelfSectionsTest {
         s.start(ShelfSections.RESUME);
         s.start(ShelfSections.NEXT_UP);
         s.start(ShelfSections.YOUTUBE);
-        assertEquals("_ _ _ _ _ _ _", ids(s.rows()));
+        assertEquals("_ _ _ _ _ _ _", ids(s.rows(ALL)));
         s.set(ShelfSections.NEXT_UP, Arrays.asList(jf("n1")));
-        assertEquals("_ _ n1 _ _ _", ids(s.rows()));
+        assertEquals("_ _ n1 _ _ _", ids(s.rows(ALL)));
         s.set(ShelfSections.RESUME, Arrays.asList(jf("r1"), jf("n1")));
-        assertEquals("r1 n1 _ _ _", ids(s.rows()));
+        assertEquals("r1 n1 _ _ _", ids(s.rows(ALL)));
     }
 
     @Test
@@ -44,11 +47,11 @@ public class ShelfSectionsTest {
         s.set(ShelfSections.RESUME, Arrays.asList(jf("r1")));
         s.start(ShelfSections.YOUTUBE);
         s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("v2")), 300);
-        assertEquals("r1 v2 _ _ _", ids(s.rows()));
+        assertEquals("r1 v2 _ _ _", ids(s.rows(ALL)));
         s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("v1"), yt("v2")), 300);
-        assertEquals("r1 v2 v1 _ _ _", ids(s.rows()));
+        assertEquals("r1 v2 v1 _ _ _", ids(s.rows(ALL)));
         s.finish(ShelfSections.YOUTUBE);
-        assertEquals("r1 v2 v1", ids(s.rows()));
+        assertEquals("r1 v2 v1", ids(s.rows(ALL)));
     }
 
     @Test
@@ -56,10 +59,10 @@ public class ShelfSectionsTest {
         ShelfSections s = new ShelfSections();
         s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("old")));
         s.start(ShelfSections.YOUTUBE);
-        assertEquals("old", ids(s.rows()));
+        assertEquals("old", ids(s.rows(ALL)));
         s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("new")), 300);
         s.finish(ShelfSections.YOUTUBE);
-        assertEquals("old new", ids(s.rows()));
+        assertEquals("old new", ids(s.rows(ALL)));
     }
 
     @Test
@@ -69,7 +72,7 @@ public class ShelfSectionsTest {
         s.start(ShelfSections.YOUTUBE);
         s.set(ShelfSections.RESUME, null);
         s.set(ShelfSections.YOUTUBE, Collections.emptyList());
-        assertTrue(s.rows().isEmpty());
+        assertTrue(s.rows(ALL).isEmpty());
     }
 
     @Test
@@ -77,15 +80,28 @@ public class ShelfSectionsTest {
         ShelfSections s = new ShelfSections();
         s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("v1")));
         s.start(ShelfSections.YOUTUBE);
-        assertEquals("v1", ids(s.rows()));
+        assertEquals("v1", ids(s.rows(ALL)));
         s.set(ShelfSections.YOUTUBE, null);
-        assertEquals("v1", ids(s.rows()));
+        assertEquals("v1", ids(s.rows(ALL)));
         s.clear();
-        assertTrue(s.rows().isEmpty());
+        assertTrue(s.rows(ALL).isEmpty());
     }
 
     @Test
     public void keysTellSourcesApart() {
         assertTrue(!ShelfSections.key(jf("a")).equals(ShelfSections.key(yt("a"))));
+    }
+
+    @Test
+    public void eachRowShowsOnlyItsSourcesInOrder() {
+        ShelfSections s = new ShelfSections();
+        s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("v1")));
+        s.set(ShelfSections.SPORTS, Arrays.asList(jf("match")));
+        s.set(ShelfSections.LIVE, Arrays.asList(jf("la1")));
+        s.set(ShelfSections.NEW, Arrays.asList(jf("e9")));
+        s.set(ShelfSections.RESUME, Arrays.asList(jf("r1")));
+        assertEquals("la1 match", ids(s.rows(ShelfSections.LIVE, ShelfSections.SPORTS)));
+        assertEquals("r1 e9", ids(s.rows(ShelfSections.RESUME, ShelfSections.NEXT_UP, ShelfSections.NEW)));
+        assertEquals("v1", ids(s.rows(ShelfSections.YOUTUBE)));
     }
 }

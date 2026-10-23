@@ -4,19 +4,6 @@
     <string name="inputs">المدخلات</string>
     <string name="wifi">واي فاي</string>
     <string name="settings">الإعدادات</string>
-    <string name="edit_dock">تعديل الشريط</string>
-    <string name="edit_dock_hint">اختر حتى %1$d تطبيقات. OK يستبدل التطبيق، ويمين/يسار يغيّر ترتيبه.</string>
-    <string name="dock_slot">الخانة %1$d</string>
-    <string name="dock_replace_hint">OK للاستبدال</string>
-    <string name="add_app_to_dock">إضافة تطبيق</string>
-    <string name="remove_highlighted">إزالة التطبيق المحدد</string>
-    <string name="dock_done">تم</string>
-    <string name="replace_dock_app">استبدال تطبيق في الشريط</string>
-    <string name="remove_from_dock">إزالة من الشريط</string>
-    <string name="choose_tv_app_hint">تطبيقات التلفاز المثبّتة</string>
-    <string name="no_tv_apps">لا توجد تطبيقات تلفاز أخرى</string>
-    <string name="edit_app_order">تعديل ترتيب التطبيقات</string>
-    <string name="edit_app_order_hint">كل التطبيقات أسفل الشريط. يمين/يسار يغيّر ترتيب التطبيق المحدد.</string>
     <string name="reorder_hint">نقل  •  الأسهم للتحريك  •  OK / رجوع للخروج</string>
     <string name="system_settings">إعدادات Android</string>
     <string name="choose_input">المدخلات</string>
@@ -43,8 +30,5 @@
     <string name="toggle_dream_analog">ساعة بعقارب في شاشة التوقف</string>
     <string name="toggle_on">مفعّل</string>
     <string name="toggle_off">معطّل</string>
-    <string name="dock_list">تطبيقات الشريط وترتيبها</string>
-    <string name="dock_edit_place_hint">تعديل الشريط  •  اختر مكانًا ثم OK  •  رجوع للخروج</string>
-    <string name="dock_edit_app_hint">تعديل الشريط  •  اختر التطبيق لهذا المكان ثم OK  •  رجوع</string>
     <string name="apps_per_row">التطبيقات في كل صف</string>
 </resources>

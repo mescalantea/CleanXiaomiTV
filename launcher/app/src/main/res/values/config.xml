@@ -10,7 +10,7 @@
     <string name="launcher_name" translatable="false">CleanXiaomiTV</string>
 
 
-    <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
+    <!-- Apps first in the apps grid, in this order, until the order is changed on the TV. Missing apps are skipped. -->
     <string-array name="dock_apps">
         <item>org.jellyfin.androidtv</item>
         <item>com.google.android.youtube.tv</item>
@@ -64,13 +64,8 @@
     <string name="weather_latitude" translatable="false">40.4168</string>
     <string name="weather_longitude" translatable="false">-3.7038</string>
     <string name="weather_place" translatable="false">Madrid</string>
-    <!-- Grid rows left visible under the dock on the home screen. 0 = dock sits at the very bottom. -->
-    <integer name="rows_below_dock">0</integer>
 
-    <!-- Dock slots. Tiles are 180dp wide at 4 and shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a
-         1080p TV). -->
-    <integer name="columns">4</integer>
-    <!-- Tiles per row in the grid below the dock. More than columns gives smaller grid tiles. -->
+    <!-- Tiles per row in the apps grid. Also on the TV (Settings menu, Apps per row). -->
     <integer name="grid_columns">5</integer>
 
     <!-- "Default home" tile that opens Android's home-screen picker, for TVs whose settings have one

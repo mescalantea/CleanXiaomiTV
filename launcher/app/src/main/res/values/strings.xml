@@ -4,20 +4,7 @@
     <string name="inputs">Inputs</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Settings</string>
-    <string name="edit_dock">Edit Dock</string>
-    <string name="edit_dock_hint">Choose up to %1$d apps. OK replaces an app; Left/Right reorders it.</string>
-    <string name="dock_slot">Slot %1$d</string>
-    <string name="dock_replace_hint">OK replace</string>
-    <string name="add_app_to_dock">Add app</string>
-    <string name="remove_highlighted">Remove highlighted app</string>
-    <string name="dock_done">Done</string>
-    <string name="replace_dock_app">Replace Dock App</string>
-    <string name="remove_from_dock">Remove from dock</string>
-    <string name="choose_tv_app_hint">Installed TV apps</string>
-    <string name="no_tv_apps">No other TV apps found</string>
-    <string name="edit_app_order">Edit App Order</string>
-    <string name="edit_app_order_hint">All apps below the dock. Left/Right reorders the focused app.</string>
-    <string name="reorder_hint">MOVE  •  ARROWS TO MOVE  •  OK / BACK EXIT</string>
+    <string name="reorder_hint">MOVE  •  ARROWS TO MOVE THE APP, UP / DOWN AT THE EDGE MOVES THE SECTION  •  OK / BACK EXIT</string>
     <string name="system_settings">Android Settings</string>
     <string name="choose_input">Inputs</string>
     <string name="connected">Connected</string>
@@ -43,13 +30,16 @@
     <string name="toggle_dream_analog">Analog clock on screensaver</string>
     <string name="toggle_on">On</string>
     <string name="toggle_off">Off</string>
-    <string name="dock_list">Dock apps and order</string>
-    <string name="dock_edit_place_hint">EDIT DOCK  •  CHOOSE A PLACE, THEN OK  •  BACK EXIT</string>
-    <string name="dock_edit_app_hint">EDIT DOCK  •  CHOOSE THE APP FOR THIS PLACE, THEN OK  •  BACK</string>
     <string name="apps_per_row">Apps per row</string>
-    <string name="shelf_title">For you</string>
     <string name="shelf_episode" formatted="false">S%1$dE%2$d</string>
     <string name="profiles">Profiles</string>
     <string name="shelf_live">LIVE</string>
     <string name="shelf_sports">Sports on free TV</string>
+    <string name="section_youtube">YouTube</string>
+    <string name="section_tv">Live TV</string>
+    <string name="section_jellyfin">Continue watching</string>
+    <string name="section_apps">Apps</string>
+    <string name="section_move_hint">MOVE SECTION  •  UP / DOWN  •  OK / BACK DONE</string>
+    <string name="hero_now">now</string>
+    <string name="shelf_new">NEW</string>
 </resources>

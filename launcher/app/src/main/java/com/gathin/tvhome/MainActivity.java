@@ -13,7 +13,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
 import android.graphics.Typeface;
@@ -39,6 +38,7 @@ import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.TextPaint;
 import android.text.TextUtils;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -73,14 +73,17 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Home: a pinned dock row and an app grid; the focused tile zooms a little with a white outline, as on Google TV.
+ * Home, Google TV style: a hero for the focused card over a list of titled sections (YouTube, live TV, Jellyfin,
+ * the apps grid) that the owner can reorder; the focused card zooms a little with a white outline.
  */
 public class MainActivity extends Activity implements AppAdapter.TileListener {
 
-    /** Tiles per row and dock slots (res/values/config.xml, columns). Set in onCreate. */
-    static int COLUMNS = 4;
-    /** Tiles per grid row below the dock (res/values/config.xml, grid_columns). Set in onCreate. */
+    /** Tiles per row of the apps grid (res/values/config.xml, grid_columns, or the Settings menu). Set in onCreate. */
     static int GRID_COLUMNS = 5;
+    /** Section keys, saved in this order (Config.sectionOrder). */
+    static final String SECTION_YOUTUBE = "youtube", SECTION_TV = "tv", SECTION_JELLYFIN = "jellyfin", SECTION_APPS = "apps";
+    /** Where the focused section's top sits, as a share of the screen's height. */
+    private static final float ANCHOR = 0.52f;
     private static final long MINUTE_MS = 60_000L;
     private static final long WEATHER_MS = 30 * MINUTE_MS;
     private String liveTvPkg;
@@ -92,10 +95,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private AppAdapter adapter;
     private RecyclerView grid;
     private FrameLayout root;
-    private View ambient;
-    private int ambientColor = -1;
-    /** The dock row is in place (focus on it, or above it): the glow, the photo credit and the shelf show. */
-    private boolean heroShown;
     private TextView greeting;
     private TextView reorderHint;
     private View btnInputs;
@@ -108,11 +107,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Null when now_playing is off. */
     private NowPlayingCard nowCard;
     private Shelf shelf;
-    private View shelfView;
-    /** Just above the dock tiles (root coordinates); the shelf goes above it. */
-    private float heroY;
-    /** A photo of the day or a theme's wallpaper is behind Home (the ambient glow is drawn for it). */
-    private boolean photoShown;
+    /** Home's sections, in the owner's order. */
+    private final List<Section> sections = new ArrayList<>();
+    private LinearLayout sectionList;
+    /** The section being moved (hold OK on one of its cards), or null. */
+    private Section moving;
+    private View hero, heroImage, heroScrim;
+    private TextView heroTitle, heroSource, heroDescription;
+    /** The card the hero shows, so a picture that arrives late for another card is dropped. */
+    private ShelfItem heroItem;
     private boolean homePhotoOn;
     /** The three-hour slot (yyyy-MM-dd/h) the home photo is for; null until one is shown. */
     private String photoSlot;
@@ -135,16 +138,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** App of the last focused tile, so focus follows it when the app list changes. */
     private static String lastFocusedKey;
     private float density;
-    /** Saved dock order wins over config.xml and a theme's config.json. */
-    private List<String> dockApps = Collections.emptyList();
-    /** Saved non-dock app order; the normal label order remains the fresh-install fallback. */
+    /** The owner's app order (AppOrder); dock_apps lead it until one is saved. */
     private List<String> appOrder = Collections.emptyList();
     /** Non-modal, on-home-screen reorder mode entered by holding OK on a tile. */
     private boolean reorderMode;
-    /** Edit-dock mode (Settings menu): choose a dock place, then the app to put there. */
-    private boolean dockEditing;
-    /** Dock place being changed in edit-dock mode, or -1 while the place is still being chosen. */
-    private int dockEditSlot = -1;
     private int reorderPosition = -1;
     /** Rebuild the tiles on the way back to Home only when apps changed meanwhile (TileRefresh). */
     private final TileRefresh tileRefresh = new TileRefresh();
@@ -221,7 +218,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
         Config cfg = Config.load(this);
-        COLUMNS = cfg.columns;
         GRID_COLUMNS = cfg.gridColumns;
         liveTvPkg = cfg.liveTvPackage;
         liveTvAction = cfg.liveTvAction;
@@ -233,7 +229,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.setBackgroundColor(cfg.backgroundColor);
         if (cfg.wallpaper != null) showWallpaper(cfg.wallpaper);
         homePhotoOn = cfg.homePhoto && cfg.wallpaper == null;
-        ambient = findViewById(R.id.ambient);
+        hero = findViewById(R.id.hero);
+        heroImage = findViewById(R.id.heroImage);
+        heroScrim = findViewById(R.id.heroScrim);
+        heroTitle = findViewById(R.id.heroTitle);
+        heroSource = findViewById(R.id.heroSource);
+        heroDescription = findViewById(R.id.heroDescription);
+        sectionList = findViewById(R.id.sections);
         reorderHint = findViewById(R.id.reorderHint);
         greeting = findViewById(R.id.greeting);
         btnWifi = findViewById(R.id.btnWifi);
@@ -244,75 +246,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             weatherUrl = "https://api.open-meteo.com/v1/forecast?latitude=" + cfg.weatherLatitude
                     + "&longitude=" + cfg.weatherLongitude + "&current=temperature_2m,weather_code,is_day&timezone=auto";
         }
-        dockApps = DockEditor.loadDock(this, cfg.dockApps, COLUMNS);
-        appOrder = DockEditor.loadAppOrder(this, dockApps);
+        appOrder = AppOrder.load(this, cfg.dockApps);
 
-        grid = findViewById(R.id.grid);
-        // One grid, Google TV style: the dock apps are simply its first tiles, the same size as the rest.
-        GridLayoutManager glm = new GridLayoutManager(this, GRID_COLUMNS) {
-            /**
-             * Keep the rows just off screen laid out (half a screen beyond each edge). The first grid row
-             * sits below the screen's edge under the dock, so without this Down found no tile there and
-             * fell back to scrolling first and focusing after, which made the highlight jump.
-             */
-            @Override
-            protected void calculateExtraLayoutSpace(@NonNull RecyclerView.State state, @NonNull int[] extra) {
-                extra[0] = extra[1] = getHeight() / 2;
-            }
-
-            /** Same amount as RecyclerView's own focus scroll, but with the launcher's slower glide. */
-            @Override
-            public boolean requestChildRectangleOnScreen(@NonNull RecyclerView parent, @NonNull View child,
-                                                         @NonNull Rect rect, boolean immediate, boolean focusedChildVisible) {
-                int top = getPaddingTop(), bottom = getHeight() - getPaddingBottom();
-                int childTop = child.getTop() + rect.top - child.getScrollY();
-                int childBottom = childTop + rect.height();
-                int offTop = Math.min(0, childTop - top), offBottom = Math.max(0, childBottom - bottom);
-                int dy = offTop != 0 ? offTop : Math.min(childTop - top, offBottom);
-                if (dy == 0) return false;
-                if (immediate) parent.scrollBy(0, dy);
-                else glide(dy);
-                return true;
-            }
-        };
-        grid.setLayoutManager(glm);
-        grid.setHasFixedSize(true);
+        grid = new RecyclerView(this);
+        grid.setLayoutManager(new GridLayoutManager(this, GRID_COLUMNS));
         grid.setItemAnimator(null);
         grid.setLayoutAnimation(new LayoutAnimationController(
                 AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
-        adapter = new AppAdapter(this, this, COLUMNS, cfg, dockApps, appOrder);
-        grid.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
-            @Override
-            public void onChildViewAttachedToWindow(@NonNull View v) {
-                v.setAlpha(tileAlpha(grid.getChildAdapterPosition(v)));
-            }
-
-            @Override
-            public void onChildViewDetachedFromWindow(@NonNull View v) {
-            }
-        });
+        adapter = new AppAdapter(this, this, cfg, appOrder);
         grid.setAdapter(adapter);
-
-        // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
-        // rows_below_dock grid rows under it; the rest of the grid stays below until you press Down.
-        int rowsBelowDock = cfg.rowsBelowDock;
-        grid.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
-            int h = b - t;
-            // Item height follows the tile size, which follows the column count (AppAdapter.tileWidthPx).
-            int inner = (r - l) - grid.getPaddingLeft() - grid.getPaddingRight();
-            int gridH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(AppAdapter.tileWidthPx(inner, GRID_COLUMNS, density)), density);
-            int dockRow = gridH;
-            int gridRows = gridH * rowsBelowDock;
-            // The first row sits at the bottom, under the shelf. With no rows below, the next row stays out of
-            // sight until Down: the item ends in the strip where the focused tile's name shows, and reaches a
-            // little past the screen's edge below it.
-            // With rows below, a little room under them.
-            int spare = rowsBelowDock > 0 ? (int) (30 * density) : -(int) (10 * density);
-            int want = Math.max(0, h - dockRow - gridRows - spare);
-            if (grid.getPaddingTop() != want) {
-                grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
-            }
-        });
 
         btnInputs = findViewById(R.id.btnInputs);
         View btnSettings = findViewById(R.id.btnSettings);
@@ -333,8 +275,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
                         @Override
                         public void down() {
-                            if (shelfShowing()) shelf.focus();
-                            else focusTile(lastFocused % GRID_COLUMNS);
+                            focusFirstSection();
                         }
                     });
             FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -343,24 +284,52 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             nowPlaying = new NowPlaying(this, handler, this::showNowPlaying);
         }
         btnSettings.setOnClickListener(v -> showSettingsMenu());
-        shelfView = findViewById(R.id.shelf);
         Config.Profile profile = cfg.profile(Config.chosenProfile(this));
-        shelf = new Shelf(this, findViewById(R.id.shelfList), cfg, profile, new Shelf.Exits() {
+        RecyclerView[] rows = {row(), row(), row()};
+        shelf = new Shelf(this, rows, cfg, profile, new Shelf.Exits() {
             @Override
-            public void up() {
-                if (cardShowing()) nowCard.defaultButton().requestFocus();
-                else (lastPill != null && lastPill.getVisibility() == View.VISIBLE ? lastPill : btnSettings).requestFocus();
+            public void up(int row) {
+                moveVertical(sectionOfRow(row), -1);
             }
 
             @Override
-            public void down() {
-                focusTile(lastFocused % GRID_COLUMNS);
+            public void down(int row) {
+                moveVertical(sectionOfRow(row), 1);
             }
 
             @Override
-            public void changed() {
-                updateShelf();
+            public void changed(int row) {
+                updateSections();
             }
+
+            @Override
+            public void focused(int row, ShelfItem item) {
+                showHero(item);
+            }
+
+            @Override
+            public void longPressed(int row) {
+                startSectionMove(sectionOfRow(row));
+            }
+
+            @Override
+            public boolean clicked(int row) {
+                if (moving == null) return false;
+                endSectionMove();
+                return true;
+            }
+        });
+        sections.add(new Section(SECTION_YOUTUBE, R.string.section_youtube, rows[Shelf.ROW_YOUTUBE], Shelf.ROW_YOUTUBE));
+        sections.add(new Section(SECTION_TV, R.string.section_tv, rows[Shelf.ROW_TV], Shelf.ROW_TV));
+        sections.add(new Section(SECTION_JELLYFIN, R.string.section_jellyfin, rows[Shelf.ROW_JELLYFIN], Shelf.ROW_JELLYFIN));
+        sections.add(new Section(SECTION_APPS, R.string.section_apps, grid, -1));
+        orderSections(Config.sectionOrder(this));
+        // Every focus change says which section the user is in: it slides into place and the hero follows.
+        getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
+            Section in = sectionOf(newF);
+            if (in != null) scrollTo(in, newF);
+            else if (newF != null && isInHeader(newF)) scrollTo(null, null);
+            if (in == null || in.row < 0) showHero(null);
         });
 
         // Keep focus on the top bar at its ends and at the top: Android's focus finder would otherwise
@@ -369,11 +338,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                // The now playing card when it shows, else back to the dock tile Up came from, not
-                // wherever the focus finder lands.
+                // The now playing card when it shows, else the first section, not wherever the focus finder lands.
                 if (cardShowing()) nowCard.defaultButton().requestFocus();
-                else if (shelfShowing()) shelf.focus();
-                else focusTile(lastFocused % GRID_COLUMNS);
+                else focusFirstSection();
                 return true;
             }
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
@@ -466,7 +433,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             android.widget.ImageView wall = new android.widget.ImageView(this);
             wall.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
             wall.setImageBitmap(bmp);
-            photoShown = true;
             root.addView(wall, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         } catch (Exception | OutOfMemoryError e) {
             // A bad or huge picture must never take the home screen down; the plain colour stays.
@@ -476,14 +442,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        // Home pressed while already on Home: back to the first dock app, the grid and shelf at their start.
+        // Home pressed while already on Home: back to the first card of the first section, everything at its start.
         if (!hasWindowFocus() || !Intent.ACTION_MAIN.equals(intent.getAction())) return;
         if (openPopup != null) openPopup.dismiss();
-        grid.scrollToPosition(0);
+        finishReorder();
+        endSectionMove();
         shelf.toStart();
         lastFocused = 0;
         lastFocusedKey = adapter.keyAt(0);
-        focusTile(0);
+        focusFirstSection();
     }
 
     @Override
@@ -531,17 +498,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Capture the app before rebinding can move focus and overwrite its key.
         final String returnKey = lastFocusedKey;
         final int returnSlot = lastFocused;
-        final boolean restoreFocus = animate || grid.hasFocus();
-        if (restoreFocus) {
-            heroShown = false;
-            ambient.setAlpha(0f);
-        }
+        final boolean restoreFocus = grid.hasFocus();
         if (rebuild) {
             reloadTiles();
             if (animate) grid.scheduleLayoutAnimation();
         }
 
-        if (restoreFocus) {
+        if (getCurrentFocus() == null) {
+            // Nothing focused yet (Home just started): the first card of the first section.
+            sectionList.post(this::focusFirstSection);
+        } else if (restoreFocus) {
             // Follow the same app, or the nearest remaining slot when it was removed.
             restoreFocus();
         } else {
@@ -549,7 +515,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int pos = adapter.positionOf(returnKey);
             lastFocused = Math.max(0, Math.min(pos >= 0 ? pos : returnSlot, adapter.getItemCount() - 1));
             lastFocusedKey = adapter.keyAt(lastFocused);
-            if (pos < 0) hideHero();
         }
     }
 
@@ -561,6 +526,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lastFocusedKey = returnKey;
         lastFocused = returnSlot;
         packageSequence = currentPackageSequence(packageSequence);
+        updateSections();
     }
 
     /** True when PackageManager reports apps changed since the last rebuild (one binder call). */
@@ -590,7 +556,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onPause() {
         super.onPause();
-        endDockEdit();
+        endSectionMove();
         handler.removeCallbacks(minuteTick);
         if (nowPlaying != null) nowPlaying.stop();
         if (nowCard != null) nowCard.stop();
@@ -624,44 +590,170 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             finishReorder();
             return;
         }
-        if (dockEditing) {
-            // One step back: from choosing the app to choosing the place, and from there out of the mode.
-            if (dockEditSlot >= 0) {
-                int slot = dockEditSlot;
-                dockEditSlot = -1;
-                dimTiles();
-                reorderHint.setText(R.string.dock_edit_place_hint);
-                focusTile(slot);
-            } else {
-                endDockEdit();
-            }
+        if (moving != null) {
+            endSectionMove();
             return;
         }
         // Home screen: Back goes nowhere.
     }
 
-    // ---- focused tile ----------------------------------------------------------------------------
+    // ---- sections ------------------------------------------------------------------------------
 
-    @Override
-    public void onTileFocused(int position, View card) {
-        lastFocused = position;
-        lastFocusedKey = adapter.keyAt(position);
-        // Tile rect in root coordinates, using layout positions (ignores the scale animation).
-        Rect r = new Rect(0, 0, card.getWidth(), card.getHeight());
-        root.offsetDescendantRectToMyCoords(card, r);
-        float pad = 6f * density;        // room for the zoomed tile and its outline
-        View item = (View) card.getParent();
-        if (position < GRID_COLUMNS) {
-            // First row (the dock apps lead it): park it at the bottom of the screen, with the shelf above.
-            int dy = item.getTop() - grid.getPaddingTop();
-            // Only when the row is actually off: a few pixels' mismatch must not start a scroll on every move.
-            if (Math.abs(dy) > (int) (8 * density)) glide(dy);
-            showHero(position, r.top - dy);
-        } else {
-            hideHero();
-            // Scroll just enough so the whole zoomed tile is visible.
-            Rect want = new Rect(0, -(int) pad * 2, item.getWidth(), item.getHeight() + (int) pad);
-            grid.requestChildRectangleOnScreen(item, want, false);
+    /** One titled section: a row of cards (a Shelf row) or the apps grid (row -1). */
+    private final class Section {
+        final String key;
+        final int row;
+        final LinearLayout view;
+        final RecyclerView list;
+
+        Section(String key, int title, RecyclerView list, int row) {
+            this.key = key;
+            this.row = row;
+            this.list = list;
+            int margin = getResources().getDimensionPixelSize(R.dimen.home_margin);
+            view = new LinearLayout(MainActivity.this);
+            view.setOrientation(LinearLayout.VERTICAL);
+            view.setClipChildren(false);
+            view.setClipToPadding(false);
+            view.setPadding(0, 0, 0, getResources().getDimensionPixelSize(R.dimen.section_gap));
+            TextView name = new TextView(MainActivity.this);
+            name.setText(title);
+            name.setTextColor(0xE6FFFFFF);
+            name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 19);
+            name.setTypeface(getResources().getFont(R.font.outfit));
+            name.setFontVariationSettings("'wght' 600");
+            name.setIncludeFontPadding(false);
+            name.setShadowLayer(6 * density, 0, density, 0x99000000);   // readable over a bright photo
+            name.setPadding(margin, 0, margin, (int) (4 * density));
+            view.addView(name);
+            // The card gap after the last card is room at the end; the start margin matches the title's.
+            list.setPadding(margin, 0, row >= 0 ? margin - getResources().getDimensionPixelSize(R.dimen.card_gap) : margin, 0);
+            list.setClipToPadding(false);
+            list.setClipChildren(false);
+            list.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            view.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+
+        boolean shown() {
+            return view.getVisibility() == View.VISIBLE;
+        }
+
+        boolean hasItems() {
+            return row >= 0 ? shelf.hasItems(row) : adapter.getItemCount() > 0;
+        }
+
+        void focus() {
+            if (row >= 0) shelf.focus(row);
+            else focusTile(lastFocused);
+        }
+    }
+
+    /** A horizontal list for a Shelf row. */
+    private RecyclerView row() {
+        RecyclerView list = new RecyclerView(this);
+        list.setFocusable(false);
+        return list;
+    }
+
+    private Section sectionOfRow(int row) {
+        for (Section s : sections) if (s.row == row) return s;
+        return null;
+    }
+
+    private Section sectionOf(View v) {
+        for (View at = v; at != null && at.getParent() instanceof View; at = (View) at.getParent()) {
+            for (Section s : sections) if (at == s.view) return s;
+        }
+        return null;
+    }
+
+    private boolean isInHeader(View v) {
+        View header = findViewById(R.id.header);
+        for (View at = v; at != null; at = at.getParent() instanceof View ? (View) at.getParent() : null) if (at == header) return true;
+        return false;
+    }
+
+    /** The sections in this order (keys), the ones it doesn't name after them. */
+    private void orderSections(List<String> order) {
+        List<Section> sorted = new ArrayList<>(sections);
+        Collections.sort(sorted, (a, b) -> {
+            int ia = order.indexOf(a.key), ib = order.indexOf(b.key);
+            return Integer.compare(ia < 0 ? 99 : ia, ib < 0 ? 99 : ib);
+        });
+        sections.clear();
+        sections.addAll(sorted);
+        sectionList.removeAllViews();
+        for (Section s : sections) sectionList.addView(s.view);
+        updateSections();
+    }
+
+    /** A section shows while it has something, placeholders included. */
+    private void updateSections() {
+        if (shelf == null || adapter == null) return;
+        for (Section s : sections) {
+            boolean show = s.hasItems();
+            if (show == s.shown()) continue;
+            if (!show && s.view.hasFocus()) moveVertical(s, 1);
+            s.view.setVisibility(show ? View.VISIBLE : View.GONE);
+        }
+        View focused = getCurrentFocus();
+        Section in = sectionOf(focused);
+        afterLayout(() -> scrollTo(in, in != null ? focused : null));
+    }
+
+    private Section neighbour(Section from, int dir) {
+        int i = sections.indexOf(from);
+        for (int j = i + dir; j >= 0 && j < sections.size(); j += dir) if (sections.get(j).shown()) return sections.get(j);
+        return null;
+    }
+
+    private void focusFirstSection() {
+        for (Section s : sections) {
+            if (s.shown()) {
+                s.focus();
+                return;
+            }
+        }
+        btnWifi.requestFocus();
+    }
+
+    /** Up or Down out of a section: the next one that shows, or the top buttons above the first. */
+    private void moveVertical(Section from, int dir) {
+        if (moving != null && moving == from) {
+            moveSection(from, dir);
+            return;
+        }
+        Section next = neighbour(from, dir);
+        if (next != null) {
+            next.focus();
+        } else if (dir < 0) {
+            if (cardShowing()) nowCard.defaultButton().requestFocus();
+            else (lastPill != null && lastPill.getVisibility() == View.VISIBLE ? lastPill : findViewById(R.id.btnSettings)).requestFocus();
+        }
+    }
+
+    /**
+     * Slides the sections so the focused one's top (in the apps grid, the focused tile's row) sits at the same
+     * height under the hero, as Google TV does; the ones above it fade out. With in null (focus in the top
+     * buttons), the first section takes that place.
+     */
+    private void scrollTo(Section in, View focused) {
+        Section target = in;
+        if (target == null) {
+            for (Section s : sections) if (s.shown()) {
+                target = s;
+                break;
+            }
+        }
+        if (target == null) return;
+        int extra = 0;
+        if (target.row < 0 && focused != null && focused.getParent() instanceof View) extra = ((View) focused.getParent()).getTop();
+        float y = root.getHeight() * ANCHOR - target.view.getTop() - extra;
+        sectionList.animate().translationY(y).setDuration(320).setInterpolator(GLIDE).start();
+        boolean above = true;
+        for (Section s : sections) {
+            if (s == target) above = false;
+            s.view.animate().alpha(above ? 0f : 1f).setDuration(200).start();
         }
     }
 
@@ -669,154 +761,149 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private static final android.view.animation.Interpolator GLIDE =
             new android.view.animation.PathInterpolator(0.2f, 0.8f, 0.2f, 1f);
 
-    /** Scrolls the grid by dy over 380 to 560 ms, longer for longer distances. */
-    private void glide(int dy) {
-        int ms = Math.min(560, 380 + Math.round(Math.abs(dy) / density * 0.4f));
-        grid.smoothScrollBy(0, dy, GLIDE, ms);
+    // ---- moving a section ------------------------------------------------------------------------
+
+    /** Hold OK on a card: Up and Down then move its whole section; OK or Back ends it. */
+    private void startSectionMove(Section s) {
+        if (s == null || reorderMode) return;
+        moving = s;
+        showHint(R.string.section_move_hint);
     }
 
-    // ---- top shelf -------------------------------------------------------------------------------
-
-    /** The focused tile's name shows under it (AppAdapter); here the glow, the photo credit and the shelf follow the dock. */
-    private void showHero(int position, float dockTopInRoot) {
-        int color = adapter.ambientColorAt(position);
-        heroY = dockTopInRoot - 12 * density;
-
-        if (!heroShown) {
-            TextView caption = findViewById(R.id.photoCaption);
-            if (caption.length() > 0) caption.animate().alpha(1f).setDuration(600).start();
-            setAmbient(color);
-            ambient.animate().alpha(1f).setDuration(600).start();
-            heroShown = true;
-            updateShelf();
-        } else if (color != ambientColor) {
-            setAmbient(color);   // cross-fades, see setAmbient
-        }
+    private void endSectionMove() {
+        if (moving == null) return;
+        moving = null;
+        hideHint();
     }
 
-    /**
-     * The glow used to be a full-screen radial GradientDrawable. On Android 10 that drawable is
-     * drawn on the CPU, so fading it for half a second redrew 1920×1080 every frame and the
-     * highlight looked like it was running at a few frames per second. A small bitmap stretched
-     * over the screen is one texture; changing apps only uploads it once.
-     */
-    private void setAmbient(int color) {
-        if (color == ambientColor && ambient.getBackground() != null) return;
-        ambientColor = color;
-        int c = color & 0x00FFFFFF;
-        int w = 480;
-        int h = 270;
-        Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bmp);
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        if (photoShown) {
-            // Over a photo: an aurora in the app's colours. Its own colour low on the left, a warmer
-            // shift to the right and a cooler one across the top, each a soft blob, so the picture
-            // takes on the app's tint instead of being washed over.
-            aurora(canvas, paint, w * 0.22f, h * 0.78f, w * 0.60f, color, 0f, 0x38);
-            aurora(canvas, paint, w * 0.80f, h * 0.62f, w * 0.52f, color, 28f, 0x2B);
-            aurora(canvas, paint, w * 0.50f, h * 0.08f, w * 0.64f, color, -32f, 0x22);
-        } else {
-            paint.setShader(new RadialGradient(
-                    w * 0.32f, h * 0.42f, w * 0.62f,
-                    new int[]{0x5C000000 | c, 0x26000000 | c, 0x00000000 | c},
-                    new float[]{0f, 0.45f, 1f},
-                    Shader.TileMode.CLAMP));
-            canvas.drawRect(0, 0, w, h, paint);
-        }
-        BitmapDrawable drawable = new BitmapDrawable(getResources(), bmp);
-        drawable.setGravity(Gravity.FILL);
-        // Cross-fade from the colours on screen to the new ones, instead of dipping and coming back.
-        android.graphics.drawable.Drawable old = ambient.getBackground();
-        if (old instanceof android.graphics.drawable.TransitionDrawable) {
-            old = ((android.graphics.drawable.TransitionDrawable) old).getDrawable(1);
-        }
-        if (old != null && ambient.getAlpha() > 0f) {
-            android.graphics.drawable.TransitionDrawable fade = new android.graphics.drawable.TransitionDrawable(
-                    new android.graphics.drawable.Drawable[] {old, drawable});
-            fade.setCrossFadeEnabled(true);
-            ambient.setBackground(fade);
-            fade.startTransition(700);
-        } else {
-            ambient.setBackground(drawable);
-        }
+    /** One place up or down among the shown sections; the order is saved at once. */
+    private void moveSection(Section s, int dir) {
+        Section other = neighbour(s, dir);
+        if (other == null) return;
+        int a = sections.indexOf(s), b = sections.indexOf(other);
+        sections.set(a, other);
+        sections.set(b, s);
+        List<String> order = new ArrayList<>();
+        for (Section each : sections) order.add(each.key);
+        Config.saveSectionOrder(this, order);
+        View focused = getCurrentFocus();
+        // The other section's view moves, so the focused card's never leaves the window and keeps focus.
+        sectionList.removeView(other.view);
+        sectionList.addView(other.view, sectionList.indexOfChild(s.view) + (dir > 0 ? 0 : 1));
+        afterLayout(() -> scrollTo(s, focused));
     }
 
-    /** One aurora blob: the colour turned by hueShift degrees and made vivid, fading out from its centre. */
-    private static void aurora(Canvas canvas, Paint paint, float x, float y, float r, int color, float hueShift, int alpha) {
-        float[] hsv = new float[3];
-        Color.colorToHSV(color, hsv);
-        hsv[0] = (hsv[0] + hueShift + 360f) % 360f;
-        hsv[1] = Math.min(0.7f, Math.max(0.45f, hsv[1]));
-        hsv[2] = Math.max(0.75f, hsv[2]);
-        int c = Color.HSVToColor(hsv) & 0x00FFFFFF;
-        paint.setShader(new RadialGradient(x, y, r,
-                new int[]{(alpha << 24) | c, ((alpha / 3) << 24) | c, c},
-                new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
-        canvas.drawRect(0, 0, canvas.getWidth(), canvas.getHeight(), paint);
-    }
-
-    private void hideHero() {
-        if (!heroShown) return;
-        heroShown = false;
-        // As slow as they come in (showHero): leaving the dock while the grid glides up must not blink
-        // the whole screen's colour away.
-        findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(260).start();
-        ambient.animate().alpha(0f).setDuration(600).setInterpolator(GLIDE).start();
-        updateShelf();
-    }
-
-    /** The shelf shows with the dock (like the hero name) while it has items and fits under the clock. */
-    private void updateShelf() {
-        if (shelf.hasItems() && heroShown) {
-            if (shelfView.getVisibility() != View.VISIBLE) {
-                shelfView.setAlpha(0f);
-                shelfView.setVisibility(View.VISIBLE);
+    /** Runs once the sections are laid out again, when their tops are where scrollTo reads them. */
+    private void afterLayout(Runnable then) {
+        sectionList.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                sectionList.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                then.run();
             }
-            shelfView.post(this::placeShelf);
-        } else if (shelfView.getVisibility() == View.VISIBLE) {
-            if (shelfView.hasFocus()) focusTile(lastFocused % GRID_COLUMNS);
-            shelfView.animate().alpha(0f).setDuration(260).withEndAction(() -> {
-                if (!heroShown || !shelf.hasItems()) shelfView.setVisibility(View.INVISIBLE);
-            }).start();
-        }
+        });
+        sectionList.requestLayout();
     }
 
-    private void placeShelf() {
-        if (!heroShown || !shelf.hasItems()) return;
-        View header = findViewById(R.id.leftBlock);
-        Rect r = new Rect(0, 0, header.getWidth(), header.getHeight());
-        root.offsetDescendantRectToMyCoords(header, r);
-        float top = heroY - shelfView.getHeight();
-        if (top < r.bottom) {
-            shelfView.setVisibility(View.INVISIBLE);
+    private void showHint(int text) {
+        reorderHint.setText(text);
+        reorderHint.setVisibility(View.VISIBLE);
+        reorderHint.setAlpha(0f);
+        reorderHint.setTranslationY(10 * density);
+        reorderHint.animate().alpha(1f).translationY(0f).setDuration(180).start();
+    }
+
+    private void hideHint() {
+        reorderHint.animate().alpha(0f).translationY(10 * density).setDuration(150)
+                .withEndAction(() -> reorderHint.setVisibility(View.GONE)).start();
+    }
+
+    // ---- hero ------------------------------------------------------------------------------------
+
+    /** The focused card in the top area, with its picture behind; null clears it back to the photo. */
+    private void showHero(ShelfItem item) {
+        if (item != null && item.source == ShelfItem.Source.PLACEHOLDER) item = null;
+        heroItem = item;
+        handler.removeCallbacks(heroPicture);
+        if (item == null) {
+            hero.animate().alpha(0f).setDuration(200).start();
+            heroImage.animate().alpha(0f).setDuration(400).start();
+            heroScrim.animate().alpha(0f).setDuration(400).start();
+            findViewById(R.id.photoCaption).animate().alpha(1f).setDuration(400).start();
             return;
         }
-        shelfView.setY(top);
-        shelfView.animate().alpha(1f).setDuration(260).start();
+        heroTitle.setText(heroTitle(item));
+        heroSource.setText(heroSource(item));
+        heroDescription.setText(item.description);
+        heroDescription.setVisibility(item.description.isEmpty() ? View.GONE : View.VISIBLE);
+        hero.animate().alpha(1f).setDuration(200).start();
+        heroScrim.animate().alpha(1f).setDuration(300).start();
+        findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(300).start();
+        if (item.backdrop == null) heroImage.animate().alpha(0f).setDuration(400).start();
+        // The picture only once focus rests on the card, not for every card scrolled past.
+        else handler.postDelayed(heroPicture, 350);
     }
 
-    private boolean shelfShowing() {
-        return shelfView != null && shelfView.getVisibility() == View.VISIBLE;
+    private final Runnable heroPicture = () -> {
+        final ShelfItem item = heroItem;
+        if (item == null || item.backdrop == null) return;
+        shelf.picture(item, getResources().getDisplayMetrics().widthPixels, bmp -> {
+            if (item != heroItem) return;
+            if (bmp == null) {
+                heroImage.animate().alpha(0f).setDuration(400).start();
+                return;
+            }
+            ((ImageView) heroImage).setImageBitmap(bmp);
+            heroImage.setAlpha(0f);
+            heroImage.animate().alpha(1f).setDuration(500).start();
+        });
+    };
+
+    private String heroTitle(ShelfItem item) {
+        // A live channel's card is named after the channel; the hero names what is on.
+        return item.source == ShelfItem.Source.LIVE && !item.subtitle.isEmpty() ? item.subtitle : item.title;
     }
 
-    // ---- navigation ------------------------------------------------------------------------------
+    private String heroSource(ShelfItem item) {
+        switch (item.source) {
+            case YOUTUBE:
+                return "YouTube · " + item.subtitle;
+            case JELLYFIN:
+                return item.subtitle.isEmpty() ? "Jellyfin" : "Jellyfin · " + item.subtitle;
+            case LIVE:
+                return item.title + " · " + getString(R.string.hero_now);
+            default:
+                return item.subtitle;
+        }
+    }
+
+    // ---- apps ------------------------------------------------------------------------------------
+
+    @Override
+    public void onTileFocused(int position, View card) {
+        lastFocused = position;
+        lastFocusedKey = adapter.keyAt(position);
+    }
 
     @Override
     public boolean onTileVerticalKey(int position, int keyCode) {
+        Section apps = sectionOfRow(-1);
         if (reorderMode) {
             int current = reorderPosition >= 0 ? reorderPosition : position;
             int moved = adapter.moveForReorder(current, keyCode);
+            if (moved < 0 && (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) {
+                // At the grid's top or bottom edge, Up and Down move the whole apps section.
+                moveSection(apps, keyCode == KeyEvent.KEYCODE_DPAD_UP ? -1 : 1);
+                return true;
+            }
             if (moved >= 0 && moved != current) {
                 reorderPosition = moved;
                 lastFocused = moved;
                 lastFocusedKey = adapter.keyAt(moved);
                 // Persist each move immediately. OK and Back are deliberately identical: both
                 // simply leave move mode, without a second confirm/cancel decision.
-                dockApps = adapter.dockApps();
                 appOrder = adapter.appOrder();
-                DockEditor.saveDock(this, dockApps);
-                DockEditor.saveAppOrder(this, appOrder);
+                AppOrder.save(this, appOrder);
                 // Let RecyclerView's move animator place the tile, then put focus back on the
                 // moving card. The delayed refocus is important: during notifyItemMoved the old
                 // holder can still report itself as focused for one layout pass.
@@ -827,33 +914,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return true;
         }
         int count = adapter.getItemCount();
-        int target;
-        // Horizontal: swallow the key at a row's ends so focus never wraps to the next row or
-        // escapes up into the top bar. Mid-row moves fall through to the default focus search.
         int col = position % GRID_COLUMNS;
-        boolean firstRow = position < GRID_COLUMNS;
-        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-            return col == 0;
-        }
-        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            return col == GRID_COLUMNS - 1 || position == count - 1;
-        }
+        // Swallow Left and Right at a row's ends, so focus never wraps or leaves the grid sideways.
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return col == 0;
+        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) return col == GRID_COLUMNS - 1 || position == count - 1;
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (firstRow && shelfShowing()) {              // first row: the shelf above it
-                shelf.focus();
-                return true;
-            }
-            if (firstRow && cardShowing()) {               // first row: the now playing card above it
-                nowCard.defaultButton().requestFocus();
-                return true;
-            }
-            if (firstRow) return false;                    // first row: let focus move to the top bar
-            target = position - GRID_COLUMNS;
+            if (position < GRID_COLUMNS) moveVertical(apps, -1);
+            else focusTile(position - GRID_COLUMNS);
         } else {
-            if (position / GRID_COLUMNS == (count - 1) / GRID_COLUMNS) return true;   // last row: stay put
-            target = Math.min(position + GRID_COLUMNS, count - 1);
+            if (position / GRID_COLUMNS == (count - 1) / GRID_COLUMNS) moveVertical(apps, 1);
+            else focusTile(Math.min(position + GRID_COLUMNS, count - 1));
         }
-        focusTile(target);
         return true;
     }
 
@@ -862,39 +933,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             btnWifi.requestFocus();
             return;
         }
-        int candidate = Math.max(0, Math.min(position, adapter.getItemCount() - 1));
-        if (!adapter.isFocusableAt(candidate)) {
-            int right = candidate;
-            while (right < adapter.getItemCount() && !adapter.isFocusableAt(right)) right++;
-            int left = candidate - 1;
-            while (left >= 0 && !adapter.isFocusableAt(left)) left--;
-            candidate = right < adapter.getItemCount() ? right : left;
-        }
-        if (candidate < 0) {
-            btnWifi.requestFocus();
-            return;
-        }
-        final int pos = candidate;
+        final int pos = Math.max(0, Math.min(position, adapter.getItemCount() - 1));
         RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(pos);
         if (vh != null) {
-            View card = vh.itemView.findViewById(R.id.card);
-            // Already focused (e.g. back from an app): no focus change fires, so restore the hero by hand.
-            if (card.isFocused()) onTileFocused(pos, card);
-            else card.requestFocus();
+            vh.itemView.findViewById(R.id.card).requestFocus();
             return;
         }
-        // Not laid out yet: scroll there, then focus once the scroll settles.
-        grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override
-            public void onScrollStateChanged(@NonNull RecyclerView rv, int newState) {
-                if (newState != RecyclerView.SCROLL_STATE_IDLE) return;
-                rv.removeOnScrollListener(this);
-                RecyclerView.ViewHolder h = rv.findViewHolderForAdapterPosition(pos);
-                View target = h != null ? h.itemView.findViewById(R.id.card) : rv.getChildAt(0);
-                if (target != null) target.requestFocus();
-            }
+        grid.post(() -> {
+            RecyclerView.ViewHolder h = grid.findViewHolderForAdapterPosition(pos);
+            if (h != null) h.itemView.findViewById(R.id.card).requestFocus();
         });
-        grid.smoothScrollToPosition(pos);
     }
 
     // ---- top bar ---------------------------------------------------------------------------------
@@ -906,8 +954,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         LinearLayout rows = panel.findViewById(R.id.rows);
         final PopupWindow popup = menuPopup(panel, (int) (240 * density));
 
-        addSettingsRow(rows, popup, R.drawable.ic_edit_dock, R.string.edit_dock, 1);
-        addSettingsRow(rows, popup, R.drawable.ic_edit_dock, R.string.dock_list, 4);
         addSettingsRow(rows, popup, R.drawable.ic_settings, R.string.system_settings, 2);
         // Layout (Config.setChoice): applied when the menu closes, by rebuilding Home.
         addSeparator(rows);
@@ -959,9 +1005,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         row.findViewById(R.id.status).setVisibility(View.GONE);
         row.setOnClickListener(v -> {
             popup.dismiss();
-            if (action == 1) startDockEdit();
-            else if (action == 4) showDockEditor();
-            else if (action == 2) open(new Intent(Settings.ACTION_SETTINGS));
+            if (action == 2) open(new Intent(Settings.ACTION_SETTINGS));
         });
         rows.addView(row);
     }
@@ -1005,42 +1049,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rows.addView(row);
     }
 
-    private void showDockEditor() {
-        createDockEditor().show();
-    }
-
-    private DockEditor createDockEditor() {
-        final List<String> fallback = new ArrayList<>(dockApps);
-        Runnable refreshDockAndApps = () -> {
-            dockApps = DockEditor.loadDock(this, fallback, COLUMNS);
-            appOrder = DockEditor.loadAppOrder(this, dockApps);
-            adapter.setDockApps(dockApps);
-            adapter.setAppOrder(appOrder);
-            reloadTiles();
-            restoreFocus();
-        };
-        return new DockEditor(this, dockApps, COLUMNS, () -> refreshDockAndApps.run(), () -> {
-            appOrder = DockEditor.loadAppOrder(this, dockApps);
-            adapter.setAppOrder(appOrder);
-            reloadTiles();
-            restoreFocus();
-        });
-    }
-
     @Override
     public void onTileLongPressed(int position) {
-        if (dockEditing || reorderMode
-                || (!adapter.isDockPosition(position) && !adapter.isReorderableAppAt(position))) return;
+        if (moving != null || reorderMode || !adapter.isReorderableAppAt(position)) return;
         reorderMode = true;
-        reorderHint.setText(R.string.reorder_hint);
         reorderPosition = position;
         DefaultItemAnimator moveAnimator = new DefaultItemAnimator();
         moveAnimator.setMoveDuration(180L);
         grid.setItemAnimator(moveAnimator);
-        reorderHint.setVisibility(View.VISIBLE);
-        reorderHint.setAlpha(0f);
-        reorderHint.setTranslationY(10 * density);
-        reorderHint.animate().alpha(1f).translationY(0f).setDuration(180).start();
+        showHint(R.string.reorder_hint);
         View card = tileCardAt(position);
         if (card != null) {
             card.animate().scaleX(adapter.focusScale() * 1.06f)
@@ -1051,98 +1068,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public boolean onTileClicked(int position) {
-        if (dockEditing) {
-            onDockEditOk(position);
-            return true;   // never opens the app while editing
+        if (moving != null) {
+            endSectionMove();
+            return true;
         }
         if (!reorderMode) return false;
         finishReorder();
         return true;
-    }
-
-    // ---- edit dock -------------------------------------------------------------------------------
-
-    /** Edit dock (Settings menu): focus goes to the first dock place, which OK then chooses. */
-    private void startDockEdit() {
-        if (reorderMode) finishReorder();
-        if (!adapter.isDockPosition(0)) {
-            showDockEditor();   // an empty dock: the list editor can add apps
-            return;
-        }
-        dockEditing = true;
-        dockEditSlot = -1;
-        reorderHint.setText(R.string.dock_edit_place_hint);
-        reorderHint.setVisibility(View.VISIBLE);
-        reorderHint.setAlpha(0f);
-        reorderHint.setTranslationY(10 * density);
-        reorderHint.animate().alpha(1f).translationY(0f).setDuration(180).start();
-        focusTile(0);
-    }
-
-    /**
-     * First OK on a dock tile chooses that place (the other dock tiles dim) and focus moves to the grid; then OK on
-     * any tile puts that app in the place, and the app it replaces takes the chosen app's old spot.
-     */
-    private void onDockEditOk(int position) {
-        if (dockEditSlot < 0) {
-            if (!adapter.isDockPosition(position)) return;
-            dockEditSlot = position;
-            dimTiles();
-            reorderHint.setText(R.string.dock_edit_app_hint);
-            focusTile(adapter.getItemCount() > COLUMNS ? COLUMNS : position);
-            return;
-        }
-        swapIntoDock(dockEditSlot, position);
-    }
-
-    private void swapIntoDock(int slot, int position) {
-        String chosen = adapter.packageAt(position);
-        List<String> dock = adapter.dockApps();
-        if (chosen != null && slot < dock.size() && !chosen.equals(dock.get(slot))) {
-            String replaced = dock.get(slot);
-            List<String> order = adapter.appOrder();
-            int inDock = dock.indexOf(chosen);
-            if (inDock >= 0) {
-                dock.set(inDock, replaced);   // both in the dock: they trade places
-            } else {
-                int at = order.indexOf(chosen);
-                if (at >= 0) order.set(at, replaced);
-                else order.add(replaced);
-            }
-            dock.set(slot, chosen);
-            dockApps = dock;
-            appOrder = order;
-            DockEditor.saveDock(this, dockApps);
-            DockEditor.saveAppOrder(this, appOrder);
-            adapter.setDockApps(dockApps);
-            adapter.setAppOrder(appOrder);
-            reloadTiles();
-        }
-        endDockEdit();
-        lastFocused = slot;
-        lastFocusedKey = adapter.keyAt(slot);
-        grid.post(() -> focusTile(slot));
-    }
-
-    private void endDockEdit() {
-        if (!dockEditing) return;
-        dockEditing = false;
-        dockEditSlot = -1;
-        dimTiles();
-        reorderHint.animate().alpha(0f).translationY(10 * density).setDuration(150)
-                .withEndAction(() -> reorderHint.setVisibility(View.GONE)).start();
-    }
-
-    private void dimTiles() {
-        for (int i = 0; i < grid.getChildCount(); i++) {
-            View item = grid.getChildAt(i);
-            item.setAlpha(tileAlpha(grid.getChildAdapterPosition(item)));
-        }
-    }
-
-    /** Dim in edit-dock mode: the dock tiles other than the chosen place. */
-    private float tileAlpha(int position) {
-        return dockEditSlot >= 0 && position >= 0 && position < COLUMNS && position != dockEditSlot ? 0.45f : 1f;
     }
 
     private View tileCardAt(int position) {
@@ -1161,8 +1093,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         reorderMode = false;
         reorderPosition = -1;
         grid.setItemAnimator(null);
-        reorderHint.animate().alpha(0f).translationY(10 * density).setDuration(150)
-                .withEndAction(() -> reorderHint.setVisibility(View.GONE)).start();
+        hideHint();
     }
 
     private void updateGreeting() {
@@ -1252,7 +1183,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             nowCard.setVisibility(View.VISIBLE);
             nowCard.animate().alpha(1f).setDuration(300).start();
         } else if (!show && nowCard.getVisibility() == View.VISIBLE) {
-            if (nowCard.hasFocus()) focusTile(lastFocused % GRID_COLUMNS);
+            if (nowCard.hasFocus()) focusFirstSection();
             nowCard.animate().alpha(0f).setDuration(300).withEndAction(() -> {
                 if (!nowCard.hasTrack()) nowCard.setVisibility(View.GONE);
             }).start();
@@ -1305,10 +1236,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     photo.setImageBitmap(bmp);
                 }
                 photo.animate().alpha(1f).setDuration(900).withEndAction(this::dropHiddenLayers).start();
-                photoShown = true;
                 TextView caption = findViewById(R.id.photoCaption);
                 caption.setText(p.credit.isEmpty() ? p.title : p.title + "  ·  " + p.credit);
-                if (heroShown) caption.animate().alpha(1f).setDuration(900).start();
+                if (heroItem == null) caption.animate().alpha(1f).setDuration(900).start();
             });
         }).start();
     }
@@ -1333,10 +1263,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void dropHiddenLayers() {
         getWindow().setBackgroundDrawable(null);
         root.setBackground(null);
-        // The ambient glow was drawn for the plain background; repaint it as an aurora for the photo.
-        int c = ambientColor;
-        ambientColor = 0;
-        if (c != 0) setAmbient(c);
     }
 
     private void showProfile(ImageView button, Config.Profile p) {

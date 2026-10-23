@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
 
         LinearLayout now = new LinearLayout(this);
         now.setGravity(Gravity.CENTER_VERTICAL);
-        temp = text(120, 200, 0xFFFFFFFF);
+        temp = text(120, 400, 0xFFFFFFFF);
         now.addView(temp);
         LinearLayout side = new LinearLayout(this);
         side.setOrientation(LinearLayout.VERTICAL);

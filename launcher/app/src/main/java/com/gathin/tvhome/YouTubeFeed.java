@@ -115,7 +115,7 @@ final class YouTubeFeed {
      */
     static List<ShelfItem> parse(XmlPullParser p, String channelId) throws Exception {
         List<ShelfItem> out = new ArrayList<>();
-        String id = null, title = "", channel = "", published = "", owner = channelId;
+        String id = null, title = "", channel = "", published = "", owner = channelId, description = "";
         boolean inEntry = false, inAuthor = false;
         for (int event = p.getEventType(); event != XmlPullParser.END_DOCUMENT; event = p.next()) {
             if (event == XmlPullParser.START_TAG) {
@@ -123,7 +123,7 @@ final class YouTubeFeed {
                 if (name.equals("entry")) {
                     inEntry = true;
                     id = null;
-                    title = channel = published = "";
+                    title = channel = published = description = "";
                     owner = channelId;
                 } else if (inEntry && name.equals("author")) {
                     inAuthor = true;
@@ -135,6 +135,10 @@ final class YouTubeFeed {
                     title = p.nextText().trim();
                 } else if (inEntry && inAuthor && name.equals("name")) {
                     channel = p.nextText().trim();
+                } else if (inEntry && name.equals("description")) {
+                    description = p.nextText().trim();
+                    // The hero shows two lines; the feed can carry pages of links.
+                    if (description.length() > 300) description = description.substring(0, 300);
                 } else if (inEntry && name.equals("published")) {
                     published = p.nextText().trim();
                 }
@@ -146,7 +150,8 @@ final class YouTubeFeed {
                     inEntry = false;
                     if (id != null && isVideoId(id)) {
                         out.add(new ShelfItem(ShelfItem.Source.YOUTUBE, id, title, channel,
-                                "https://i.ytimg.com/vi/" + id + "/mqdefault.jpg", -1, time(published), owner));
+                                "https://i.ytimg.com/vi/" + id + "/mqdefault.jpg", -1, time(published), owner,
+                                description, backdrop(id), false));
                     }
                 }
             }
@@ -161,6 +166,11 @@ final class YouTubeFeed {
             if (!(Character.isLetterOrDigit(c) && c < 128) && c != '-' && c != '_') return false;
         }
         return true;
+    }
+
+    /** The video's largest still, for the hero; not every video has one, see Home's hero. */
+    static String backdrop(String id) {
+        return "https://i.ytimg.com/vi/" + id + "/maxresdefault.jpg";
     }
 
     static String watchUrl(String id) {

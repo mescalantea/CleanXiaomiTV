@@ -44,9 +44,7 @@ final class Config {
     final String sourcePanelService;
     final String sourcePanelAction;
     final String inputAction;
-    final int columns;
     final int gridColumns;
-    final int rowsBelowDock;
     /** An analog clock on the screensaver instead of the digital one. */
     final boolean dreamAnalog;
     final boolean dreamPhotos;
@@ -106,7 +104,7 @@ final class Config {
 
     private Config(List<String> dockApps, List<String> hiddenApps, String liveTvPackage, String liveTvAction,
                    String sourcePanelService, String sourcePanelAction, String inputAction,
-                   int columns, int gridColumns, int rowsBelowDock,
+                   int gridColumns,
                    boolean dreamAnalog, boolean dreamPhotos, boolean nowPlaying, boolean homePhoto, String vpnApp,
                    String weatherLatitude, String weatherLongitude, String weatherPlace, boolean showHomeSettingsShortcut,
                    String jellyfinUrl, String jellyfinApiKey, String jellyfinUserId, List<String> youtubeChannels, List<String> tvChannels, String youtubeApiKey, String youtubeChannelId, List<Profile> profiles, int backgroundColor,
@@ -118,9 +116,7 @@ final class Config {
         this.sourcePanelService = sourcePanelService;
         this.sourcePanelAction = sourcePanelAction;
         this.inputAction = inputAction;
-        this.columns = columns;
         this.gridColumns = gridColumns;
-        this.rowsBelowDock = rowsBelowDock;
         this.dreamAnalog = dreamAnalog;
         this.dreamPhotos = dreamPhotos;
         this.nowPlaying = nowPlaying;
@@ -157,9 +153,7 @@ final class Config {
         String panelService = res.getString(R.string.source_panel_service).trim();
         String panelAction = res.getString(R.string.source_panel_action).trim();
         String inputAction = res.getString(R.string.input_action).trim();
-        int columns = res.getInteger(R.integer.columns);
         int gridColumns = res.getInteger(R.integer.grid_columns);
-        int rowsBelow = res.getInteger(R.integer.rows_below_dock);
         boolean dreamAnalog = res.getBoolean(R.bool.dream_analog);
         boolean photos = res.getBoolean(R.bool.dream_photos);
         boolean playing = res.getBoolean(R.bool.now_playing);
@@ -184,10 +178,7 @@ final class Config {
             panelService = string(json, "source_panel_service", panelService);
             panelAction = string(json, "source_panel_action", panelAction);
             inputAction = string(json, "input_action", inputAction);
-            columns = integer(json, "columns", columns, 1, 8);
-            // A theme that sets only columns gets an even grid, as before grid_columns existed.
-            gridColumns = integer(json, "grid_columns", json.has("columns") ? columns : gridColumns, 1, 8);
-            rowsBelow = integer(json, "rows_below_dock", rowsBelow, 0, 3);
+            gridColumns = integer(json, "grid_columns", gridColumns, 1, 8);
             dreamAnalog = bool(json, "dream_analog", dreamAnalog);
             photos = bool(json, "dream_photos", photos);
             playing = bool(json, "now_playing", playing);
@@ -228,7 +219,7 @@ final class Config {
         if (json != null && json.has("wallpaper") && !bool(json, "wallpaper", true)) wallpaper = null;
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
-                Math.max(1, columns), Math.max(1, gridColumns), Math.max(0, rowsBelow),
+                Math.max(1, gridColumns),
                 dreamAnalog, photos, playing, homePhoto, vpn,
                 weatherLat, weatherLon, weatherPlace, homeSettings,
                 jellyfinUrl, jellyfinKey, jellyfinUser, youtube, tv, youtubeKey, youtubeId, profiles, background,
@@ -296,6 +287,18 @@ final class Config {
 
     /** Keys of the switches in the Settings menu; the same names as in config.xml and config.json. */
     static final String DREAM_ANALOG = "dream_analog", GRID_COLUMNS = "grid_columns";
+    private static final String SECTIONS = "sections";
+
+    /** Home's sections as the owner ordered them on the TV, or the default order. */
+    static List<String> sectionOrder(Context ctx) {
+        String saved = toggles(ctx).getString(SECTIONS, "");
+        return saved.isEmpty() ? Arrays.asList(MainActivity.SECTION_YOUTUBE, MainActivity.SECTION_TV,
+                MainActivity.SECTION_JELLYFIN, MainActivity.SECTION_APPS) : Arrays.asList(saved.split(","));
+    }
+
+    static void saveSectionOrder(Context ctx, List<String> order) {
+        toggles(ctx).edit().putString(SECTIONS, String.join(",", order)).apply();
+    }
 
     private static SharedPreferences toggles(Context ctx) {
         return ctx.getSharedPreferences("toggles", Context.MODE_PRIVATE);

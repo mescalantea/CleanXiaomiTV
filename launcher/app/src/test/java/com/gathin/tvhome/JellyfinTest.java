@@ -78,4 +78,32 @@ public class JellyfinTest {
         assertEquals("01234567-89ab-cdef-0123-456789abcdef", Jellyfin.uuid("01234567-89ab-cdef-0123-456789abcdef"));
         assertEquals("short", Jellyfin.uuid("short"));
     }
+
+    private static ShelfItem episode(String id, String series) {
+        return new ShelfItem(ShelfItem.Source.JELLYFIN, id, "Show", "S1E1 · Name", null, -1, 0, series, "", null, false);
+    }
+
+    @Test
+    public void newEpisodesKeepStartedSeriesOnceInOrderMarkedNew() {
+        java.util.List<ShelfItem> latest = java.util.Arrays.asList(episode("a", "s1"), episode("b", "other"),
+                episode("c", "s2"), episode("a", "s1"), episode("d", "s1"), episode("e", ""));
+        java.util.List<ShelfItem> out = Jellyfin.fresh(latest, new java.util.HashSet<>(java.util.Arrays.asList("s1", "s2")),
+                new java.util.HashSet<>(java.util.Arrays.asList("d")), 12);
+        assertEquals(2, out.size());
+        assertEquals("a", out.get(0).id);
+        assertEquals("c", out.get(1).id);
+        assertTrue(out.get(0).fresh);
+        assertEquals(1, Jellyfin.fresh(latest, new java.util.HashSet<>(java.util.Arrays.asList("s1", "s2")),
+                new java.util.HashSet<>(), 1).size());
+    }
+
+    @Test
+    public void episodesCarryTheirSeriesOverviewAndALargePicture() throws Exception {
+        String json = "{\"Items\":[{\"Id\":\"e1\",\"Name\":\"Two\",\"Type\":\"Episode\",\"SeriesName\":\"Show\","
+                + "\"SeriesId\":\"s1\",\"Overview\":\" What happens. \",\"ImageTags\":{\"Primary\":\"t\"}}]}";
+        ShelfItem i = Jellyfin.parse(json, BASE, FORMAT).get(0);
+        assertEquals("s1", i.channel);
+        assertEquals("What happens.", i.description);
+        assertEquals(BASE + "/Items/e1/Images/Primary?maxWidth=1280", i.backdrop);
+    }
 }
