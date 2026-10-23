@@ -27,7 +27,7 @@
 - **For you**: a row above the dock with what you are watching and the next episodes on your Jellyfin server, then the latest videos of the YouTube channels you pick; OK opens them in the Jellyfin and YouTube apps. It only shows once you set it up (see [Your own values](#your-own-values)).
 - **Now playing**: while Spotify or another music app plays, a slim glass pill under the top buttons with the cover, song, artist and previous / play-pause / next, tinted in the cover's colour. Hold OK on it to open the app.
 - **Screensaver**: photos of the day with a slow zoom, the time and weather top left, and the song playing bottom left.
-- **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search) and **Channels** (35 live Moroccan and Arab channels from free streams the broadcasters publish).
+- **Apps** in [`modules/`](modules/): **Weather** (7-day forecast, city search) and **Channels** (Spanish and international live channels from [TDTChannels](https://www.tdtchannels.com)' public list of free streams).
 
 ## Install
 
@@ -80,8 +80,9 @@ This re-enables every package in the list, gives Home back to the stock Google T
 
 No analytics and no accounts. The only requests the TV makes for these features go to:
 [Open-Meteo](https://open-meteo.com) for the weather (only the city's coordinates), Bing's photo of the day
-archive for the home screen and the screensaver, [iptv-org](https://github.com/iptv-org/iptv)'s
-public lists and the broadcasters' own streams for Channels, and AdGuard as the DNS resolver. Each can be
+archive for the home screen and the screensaver, your own Jellyfin server and YouTube's public channel feeds for the
+shelf (only when you set them up), [TDTChannels](https://www.tdtchannels.com)' public list and the broadcasters' own
+streams for Channels, and AdGuard as the DNS resolver. Each can be
 switched off in `config.xml` (or by not installing that app).
 
 ## Credits

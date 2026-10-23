@@ -62,17 +62,6 @@ public class MainActivity extends Activity {
     private static final long BAR_MS = 4000;
     private static final String DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
-    /** Group titles in the bundled list, with their Arabic names. */
-    private static final Map<String, String> ARABIC = new HashMap<>();
-
-    static {
-        ARABIC.put("Morocco", "المغرب");
-        ARABIC.put("News", "الأخبار");
-        ARABIC.put("Entertainment", "الترفيه");
-        ARABIC.put("Documentary", "الوثائقيات");
-        ARABIC.put("Religious", "القنوات الدينية");
-    }
-
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newFixedThreadPool(3);
     private final LruCache<String, Bitmap> logos = new LruCache<>(60);
@@ -305,8 +294,7 @@ public class MainActivity extends Activity {
             Object row = rows.get(position);
             if (row instanceof String) {
                 TextView h = convert instanceof TextView ? (TextView) convert : text(13, 500, 0x99FFFFFF);
-                String ar = ARABIC.get(row);
-                h.setText(((String) row).toUpperCase(Locale.ROOT) + (ar == null ? "" : "  ·  " + ar));
+                h.setText(((String) row).toUpperCase(Locale.ROOT));
                 h.setLetterSpacing(0.12f);
                 h.setPadding(dp(12), dp(position == 0 ? 4 : 18), 0, dp(8));
                 return h;
@@ -507,8 +495,7 @@ public class MainActivity extends Activity {
 
     private void showBar(ChannelList.Channel c, int index) {
         barName.setText(c.name);
-        String ar = ARABIC.get(c.group);
-        barGroup.setText((index + 1) + "  ·  " + c.group + (ar == null ? "" : "  ·  " + ar));
+        barGroup.setText((index + 1) + "  ·  " + c.group);
         barLogo.setImageDrawable(null);
         loadLogo(c.logo, barLogo::setImageBitmap);
         bar.animate().cancel();
