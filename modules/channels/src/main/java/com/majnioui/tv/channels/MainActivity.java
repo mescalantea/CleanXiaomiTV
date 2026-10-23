@@ -657,7 +657,7 @@ public class MainActivity extends Activity {
             return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
         });
         guidePanel.addView(guideList, new LinearLayout.LayoutParams(-1, 0, 1f));
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(480), -1, Gravity.START);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -1, Gravity.START);
         lp.leftMargin = dp(400);
         root.addView(guidePanel, lp);
     }

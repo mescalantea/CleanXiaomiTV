@@ -284,6 +284,12 @@ final class Shelf {
         exits.changed();
     }
 
+    /** Back to the first card, as after Home. */
+    void toStart() {
+        focusedIndex = 0;
+        list.scrollToPosition(0);
+    }
+
     /** Puts focus on the item focused last, or the first one. */
     void focus() {
         RecyclerView.ViewHolder vh = list.findViewHolderForAdapterPosition(focusedIndex);
@@ -325,15 +331,15 @@ final class Shelf {
     }
 
     /**
-     * The profile's picture for the profile button: its photo URL, else its Jellyfin user's avatar (a server
-     * without one answers 404). Calls back on the main thread, only when there is a picture.
+     * A picture for the profile button: photo when given (an https URL), else the Jellyfin user's avatar (a
+     * server without one answers 404). Calls back on the main thread, only when there is a picture.
      */
-    void avatar(Config.Profile profile, int size, Consumer<Bitmap> done) {
+    void avatar(Config.Profile profile, String photo, int size, Consumer<Bitmap> done) {
         boolean jellyfin = !jellyfinUrl.isEmpty() && !jellyfinKey.isEmpty() && !profile.jellyfinUserId.isEmpty();
-        if (profile.photo.isEmpty() && !jellyfin) return;
-        final String url = !profile.photo.isEmpty() ? profile.photo
+        if (photo.isEmpty() && !jellyfin) return;
+        final String url = !photo.isEmpty() ? photo
                 : jellyfinUrl.replaceAll("/+$", "") + "/Users/" + Uri.encode(profile.jellyfinUserId) + "/Images/Primary?maxHeight=" + size;
-        final String key = profile.photo.isEmpty() ? jellyfinKey : null;
+        final String key = photo.isEmpty() ? jellyfinKey : null;
         Bitmap cached = posters.get(url);
         if (cached != null) {
             done.accept(cached);

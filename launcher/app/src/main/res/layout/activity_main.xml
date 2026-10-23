@@ -21,35 +21,18 @@
         android:layout_height="match_parent"
         android:alpha="0" />
 
-    <!-- Top shelf: the focused dock app's name, positioned above the dock in code. -->
-    <TextView
-        android:id="@+id/heroName"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="68dp"
-        android:alpha="0"
-        android:textColor="#FFFFFFFF"
-        android:textSize="48sp"
-        android:fontFamily="@font/outfit"
-        android:fontVariationSettings="'wght' 300"
-        android:letterSpacing="-0.02"
-        android:includeFontPadding="false"
-        android:singleLine="true" />
-
-    <!-- "For you": Jellyfin and YouTube posters above the hero name, positioned in code (Shelf). -->
+    <!-- "For you": Jellyfin and YouTube posters above the dock, positioned in code (Shelf). -->
     <LinearLayout
         android:id="@+id/shelf"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="56dp"
-        android:paddingEnd="56dp"
         android:orientation="vertical"
         android:visibility="gone">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="68dp"
             android:text="@string/shelf_title"
             android:textColor="#B3FFFFFF"
             android:textSize="13sp"
@@ -63,8 +46,8 @@
             android:id="@+id/shelfList"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingStart="5dp"
-            android:paddingEnd="5dp"
+            android:paddingStart="61dp"
+            android:paddingEnd="61dp"
             android:clipToPadding="false"
             android:clipChildren="false"
             android:overScrollMode="never"

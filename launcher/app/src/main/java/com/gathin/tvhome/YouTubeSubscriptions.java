@@ -98,7 +98,7 @@ final class YouTubeSubscriptions {
     }
 
     /** The response body; errors are reported by status only, since the URL carries the key. */
-    private static String get(String url) throws Exception {
+    static String get(String url) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(8000);
         c.setReadTimeout(10000);

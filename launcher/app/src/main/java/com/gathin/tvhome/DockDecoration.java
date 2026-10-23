@@ -8,7 +8,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 /** Room above and below the first (dock) row, so its focused tile zooms without touching the rows around it. */
 public class DockDecoration extends RecyclerView.ItemDecoration {
-    /** Room (dp) the hero name keeps above the dock tiles. */
+    /** Room (dp) the shelf keeps above the dock tiles. */
     static final float PAD_Y = 18;
 
     private final int dockSize;

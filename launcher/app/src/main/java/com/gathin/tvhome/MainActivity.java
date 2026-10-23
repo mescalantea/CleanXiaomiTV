@@ -16,6 +16,7 @@ import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -92,19 +93,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private RecyclerView grid;
     private FrameLayout root;
     private View ambient;
-    private TextView heroName;
     private int ambientColor = -1;
+    /** The dock row is in place (focus on it, or above it): the glow, the photo credit and the shelf show. */
     private boolean heroShown;
     private TextView greeting;
     private TextView reorderHint;
     private View btnInputs;
+    /** The profile now chosen (its private.json name, the stable key). */
+    private String currentProfile = "";
+    /** Each YouTube channel's owner name and picture, by channel id; empty until read. */
+    private java.util.Map<String, YouTubeIdentity> identities = Collections.emptyMap();
     /** The top button focused last, where Up from the shelf lands. */
     private View lastPill;
     /** Null when now_playing is off. */
     private NowPlayingCard nowCard;
     private Shelf shelf;
     private View shelfView;
-    /** Where the hero name sits (root coordinates); the shelf goes above it. */
+    /** Just above the dock tiles (root coordinates); the shelf goes above it. */
     private float heroY;
     /** A photo of the day or a theme's wallpaper is behind Home (the ambient glow is drawn for it). */
     private boolean photoShown;
@@ -228,7 +233,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (cfg.wallpaper != null) showWallpaper(cfg.wallpaper);
         homePhotoOn = cfg.homePhoto && cfg.wallpaper == null;
         ambient = findViewById(R.id.ambient);
-        heroName = findViewById(R.id.heroName);
         reorderHint = findViewById(R.id.reorderHint);
         greeting = findViewById(R.id.greeting);
         btnWifi = findViewById(R.id.btnWifi);
@@ -309,8 +313,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int gridH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(AppAdapter.tileWidthPx(inner, GRID_COLUMNS, density)), density);
             int dockRow = dockH + (int) ((6 + 12) * density);   // item height plus DockDecoration offsets
             int gridRows = gridH * rowsBelowDock;
-            // With no rows below, the next row stays out of sight until Down: the dock item ends in an empty
-            // label strip (its name shows above the dock), so it reaches a little past the screen's edge.
+            // With no rows below, the next row stays out of sight until Down: the dock item ends in the strip
+            // where the focused tile's name shows, and reaches a little past the screen's edge below it.
             // With rows below, a little room under them.
             int spare = rowsBelowDock > 0 ? (int) (30 * density) : -(int) (10 * density);
             int want = Math.max(0, h - dockRow - gridRows - spare);
@@ -410,6 +414,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             showProfile(btnProfile, profile);
             btnProfile.setVisibility(View.VISIBLE);
             btnProfile.setOnClickListener(v -> showProfiles(btnProfile, cfg));
+            // The Google account's name and photo, through each person's YouTube channel.
+            List<String> channelIds = new ArrayList<>();
+            for (Config.Profile listed : cfg.profiles) {
+                String id = cfg.profile(listed.name).youtubeChannelId;
+                if (!id.isEmpty() && !channelIds.contains(id)) channelIds.add(id);
+            }
+            if (!cfg.youtubeApiKey.isEmpty() && !channelIds.isEmpty()) {
+                new Thread(() -> {
+                    java.util.Map<String, YouTubeIdentity> found = YouTubeIdentity.load(getApplicationContext(), cfg.youtubeApiKey, channelIds);
+                    handler.post(() -> {
+                        identities = found;
+                        showProfile(btnProfile, cfg.profile(currentProfile));
+                    });
+                }).start();
+            }
         }
 
         packageFilter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -464,6 +483,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // Home pressed while already on Home: back to the first dock app, the grid and shelf at their start.
+        if (!hasWindowFocus() || !Intent.ACTION_MAIN.equals(intent.getAction())) return;
+        if (openPopup != null) openPopup.dismiss();
+        grid.scrollToPosition(0);
+        shelf.toStart();
+        lastFocused = 0;
+        lastFocusedKey = adapter.keyAt(0);
+        focusTile(0);
+    }
+
+    @Override
     protected void onStart() {
         super.onStart();
         tileRefresh.onStart();
@@ -511,7 +543,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         final boolean restoreFocus = animate || grid.hasFocus();
         if (restoreFocus) {
             heroShown = false;
-            heroName.setAlpha(0f);
             ambient.setAlpha(0f);
         }
         if (rebuild) {
@@ -656,34 +687,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     // ---- top shelf -------------------------------------------------------------------------------
 
+    /** The focused tile's name shows under it (AppAdapter); here the glow, the photo credit and the shelf follow the dock. */
     private void showHero(int position, float dockTopInRoot) {
-        String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
-        float y = dockTopInRoot - DockDecoration.PAD_Y * density - 26 * density - heroName.getHeight();
-        heroY = y;
-        boolean changed = !label.contentEquals(heroName.getText());
+        heroY = dockTopInRoot - DockDecoration.PAD_Y * density;
 
         if (!heroShown) {
-            heroName.setText(label);
-            heroName.setY(y);
-            heroName.setTranslationX(0f);
-            heroName.animate().alpha(1f).setDuration(260).start();
             TextView caption = findViewById(R.id.photoCaption);
             if (caption.length() > 0) caption.animate().alpha(1f).setDuration(600).start();
             setAmbient(color);
             ambient.animate().alpha(1f).setDuration(600).start();
             heroShown = true;
             updateShelf();
-        } else if (changed) {
-            heroName.animate().alpha(0f).translationX(-12 * density).setDuration(120).withEndAction(() -> {
-                heroName.setText(label);
-                heroName.setY(y);
-                heroName.setTranslationX(12 * density);
-                heroName.animate().alpha(1f).translationX(0f).setDuration(200).start();
-            }).start();
-            if (color != ambientColor) setAmbient(color);   // cross-fades, see setAmbient
-        } else {
-            heroName.setY(y);
+        } else if (color != ambientColor) {
+            setAmbient(color);   // cross-fades, see setAmbient
         }
     }
 
@@ -754,7 +771,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroShown = false;
         // As slow as they come in (showHero): leaving the dock while the grid glides up must not blink
         // the whole screen's colour away.
-        heroName.animate().alpha(0f).setDuration(260).setInterpolator(GLIDE).start();
         findViewById(R.id.photoCaption).animate().alpha(0f).setDuration(260).start();
         ambient.animate().alpha(0f).setDuration(600).setInterpolator(GLIDE).start();
         updateShelf();
@@ -1346,16 +1362,28 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void showProfile(ImageView button, Config.Profile p) {
-        button.setContentDescription(p.name);
+        currentProfile = p.name;
+        button.setContentDescription(displayName(p));
         setAvatar(button, p, Math.round(36 * density));
     }
 
-    /** The profile's initial at once, then its picture in a circle once it has loaded, like Google TV's. */
+    /** The name on the person's Google account (their YouTube channel's), else the profile's own. */
+    private String displayName(Config.Profile p) {
+        YouTubeIdentity id = identities.get(p.youtubeChannelId);
+        return id != null && !id.name.isEmpty() ? id.name : p.name;
+    }
+
+    /**
+     * The profile's initial at once, then its picture in a circle once it has loaded, like Google TV's: its own
+     * photo, else its YouTube (Google account) picture, else its Jellyfin avatar.
+     */
     private void setAvatar(ImageView view, Config.Profile p, int size) {
         view.setTag(p.name);
-        view.setImageBitmap(initial(p.name, size));
+        view.setImageBitmap(initial(displayName(p), size));
+        YouTubeIdentity id = identities.get(p.youtubeChannelId);
+        String photo = !p.photo.isEmpty() ? p.photo : id != null ? id.photo : "";
         // Asked for at about twice the size shown, so the circle stays sharp.
-        shelf.avatar(p, 2 * size, bmp -> {
+        shelf.avatar(p, photo, 2 * size, bmp -> {
             if (p.name.equals(view.getTag())) view.setImageBitmap(roundedArt(bmp, size, 0.5f));
         });
     }
@@ -1369,18 +1397,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         ((TextView) ((ViewGroup) panel).getChildAt(0)).setText(R.string.profiles);
         LinearLayout rows = panel.findViewById(R.id.rows);
         final PopupWindow popup = menuPopup(panel, (int) (200 * density));
-        String current = String.valueOf(button.getContentDescription());
+        String current = currentProfile;
         View currentRow = null;
         int size = Math.round(24 * density);
         for (Config.Profile listed : cfg.profiles) {
             Config.Profile p = cfg.profile(listed.name);
             View row = getLayoutInflater().inflate(R.layout.item_setting, rows, false);
             row.getLayoutParams().height = Math.round(40 * density);
-            ImageView icon = row.findViewById(R.id.icon);
-            icon.setImageTintList(null);
-            icon.getLayoutParams().width = icon.getLayoutParams().height = size;
+            // A plain ImageView instead of the row's tinted icon, so the picture keeps its own colours.
+            ImageView tinted = row.findViewById(R.id.icon);
+            ImageView icon = new ImageView(this);
+            ((ViewGroup) row).addView(icon, ((ViewGroup) row).indexOfChild(tinted), new LinearLayout.LayoutParams(size, size));
+            ((ViewGroup) row).removeView(tinted);
             setAvatar(icon, p, size);
-            ((TextView) row.findViewById(R.id.title)).setText(p.name);
+            ((TextView) row.findViewById(R.id.title)).setText(displayName(p));
             row.findViewById(R.id.status).setVisibility(View.GONE);
             boolean chosen = p.name.equals(current);
             row.findViewById(R.id.dot).setVisibility(chosen ? View.VISIBLE : View.INVISIBLE);
@@ -1389,7 +1419,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 if (chosen) return;
                 Config.chooseProfile(this, p.name);
                 showProfile(button, p);
-                Toast.makeText(this, p.name, Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, displayName(p), Toast.LENGTH_SHORT).show();
                 shelf.use(p);
             });
             row.setOnKeyListener((v, keyCode, event) -> keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT);
@@ -1410,7 +1440,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         p.setColor(Color.WHITE);
         p.setTextAlign(Paint.Align.CENTER);
         p.setTextSize(size * 0.48f);
-        p.setTypeface(getResources().getFont(R.font.outfit));
+        Typeface font = getResources().getFont(R.font.outfit);
+        p.setTypeface(Build.VERSION.SDK_INT >= 28 ? Typeface.create(font, 600, false) : font);
         String letter = name.isEmpty() ? "?" : name.substring(0, name.offsetByCodePoints(0, 1)).toUpperCase(Locale.getDefault());
         c.drawText(letter, size / 2f, size / 2f - (p.descent() + p.ascent()) / 2f, p);
         return out;

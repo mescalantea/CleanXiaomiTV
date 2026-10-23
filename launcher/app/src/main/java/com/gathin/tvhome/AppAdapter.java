@@ -279,7 +279,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         h.card.setFocusable(true);
         h.card.setClickable(true);
         h.name.setText(e.label);
-        h.name.setVisibility(position < dockSize ? View.INVISIBLE : View.VISIBLE);   // the dock has no labels
+        h.name.setVisibility(View.VISIBLE);
         boolean focused = h.card.isFocused();   // a rebind after reload() can hit the focused tile
         h.name.setAlpha(focused ? 1f : 0f);
         h.card.setScaleX(focused ? focusScale() : 1f);
@@ -363,10 +363,6 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
             if (items.get(i).component.flattenToShortString().equals(key)) return i;
         }
         return -1;
-    }
-
-    String labelAt(int position) {
-        return position >= 0 && position < items.size() ? items.get(position).label : "";
     }
 
     boolean isFocusableAt(int position) {
