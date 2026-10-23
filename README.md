@@ -66,7 +66,7 @@ The Jellyfin server, its API key and your user id, the YouTube channels for the 
 TV_HOST=<tv-ip> tools/theme.sh --private themes/private/private.json
 ```
 
-Run it once per TV, with that TV's IP. If more than one person uses the TV, list them under `profiles`: Home then gets a button with the current name, and OK on it switches the shelf to the next person's Jellyfin items and channels. `tools/theme.sh --reset` leaves `private.json` in place.
+Run it once per TV, with that TV's IP. If more than one person uses the TV, list them under `profiles`: Home then gets a button with the current name, and OK on it switches the shelf to the next person's Jellyfin items and channels. With a `youtube_api_key` and a person's `youtube_channel_id`, the shelf also follows the channels that person subscribes to, as long as their subscriptions are public (see [`themes/README.md`](themes/README.md#private-values)). `tools/theme.sh --reset` leaves `private.json` in place.
 
 ## Undo
 

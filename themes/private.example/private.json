@@ -3,8 +3,9 @@
   "jellyfin_api_key": "your-api-key",
   "jellyfin_user_id": "your-user-id",
   "youtube_channels": ["UCxxxxxxxxxxxxxxxxxxxxxx"],
+  "youtube_api_key": "your-youtube-data-api-key",
   "profiles": [
-    {"name": "Alex", "jellyfin_user_id": "alex-user-id", "youtube_channels": ["UCaaaaaaaaaaaaaaaaaaaaaa"]},
+    {"name": "Alex", "jellyfin_user_id": "alex-user-id", "youtube_channel_id": "UCbbbbbbbbbbbbbbbbbbbbbb", "youtube_channels": ["UCaaaaaaaaaaaaaaaaaaaaaa"]},
     {"name": "Sam", "jellyfin_user_id": "sam-user-id"}
   ],
   "weather_latitude": "40.4168",

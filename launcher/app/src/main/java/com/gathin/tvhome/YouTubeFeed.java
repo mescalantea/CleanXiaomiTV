@@ -11,7 +11,11 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /** The latest videos of a few YouTube channels, from their public feeds (no account or key). */
 final class YouTubeFeed {
@@ -21,10 +25,14 @@ final class YouTubeFeed {
     private YouTubeFeed() {
     }
 
-    /** Newest first across the channels, at most max; a channel that fails is skipped. Blocks. */
+    /**
+     * Newest first across the channels, at most max; a channel that fails or is too slow is skipped. Four
+     * feeds at a time and a minute in all, since a list of subscriptions can hold a hundred channels. Blocks.
+     */
     static List<ShelfItem> fetch(List<String> channels, int max) {
-        List<ShelfItem> all = new ArrayList<>();
-        for (String channel : channels) {
+        List<ShelfItem> all = Collections.synchronizedList(new ArrayList<>());
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        for (String channel : channels) pool.execute(() -> {
             try {
                 HttpURLConnection c = (HttpURLConnection) new URL("https://www.youtube.com/feeds/videos.xml?channel_id="
                         + URLEncoder.encode(channel, "UTF-8")).openConnection();
@@ -40,8 +48,17 @@ final class YouTubeFeed {
             } catch (Exception e) {
                 Log.w(TAG, "channel " + channel + ": " + e);
             }
+        });
+        pool.shutdown();
+        try {
+            pool.awaitTermination(60, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
-        return newest(all, max);
+        pool.shutdownNow();
+        synchronized (all) {
+            return newest(all, max);
+        }
     }
 
     static List<ShelfItem> newest(List<ShelfItem> items, int max) {
