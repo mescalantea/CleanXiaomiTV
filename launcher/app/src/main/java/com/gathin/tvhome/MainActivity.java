@@ -114,6 +114,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean homePressed;
     /** The section being moved (hold OK on one of its cards), or null. */
     private Section moving;
+    private ShelfItem shelfItem;
     private View hero, heroImage, heroScrim;
     private TextView heroTitle, heroSource, heroDescription;
     /** The card the hero shows, so a picture that arrives late for another card is dropped. */
@@ -306,6 +307,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
             @Override
             public void focused(int row, ShelfItem item) {
+                shelfItem = item;
                 showHero(item);
             }
 
@@ -749,6 +751,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * buttons), the first section takes that place.
      */
     private void scrollTo(Section in, View focused) {
+        if (moving != null) return;
         Section target = in;
         if (target == null) {
             for (Section s : sections) if (s.shown()) {
@@ -764,8 +767,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         boolean above = true;
         for (Section s : sections) {
             if (s == target) above = false;
-            // While a section moves, the one it passes stays visible until it has slid by.
-            s.view.animate().alpha(above ? 0f : 1f).setDuration(200).setStartDelay(moving != null && above ? SECTION_MOVE_MS : 0).start();
+            s.view.animate().alpha(above ? 0f : 1f).setDuration(200).start();
         }
     }
 
@@ -786,17 +788,58 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lift.setCornerRadius(16 * density);
         s.view.setBackground(lift);
         s.view.setTranslationZ(4 * density);   // drawn over the sections it slides past
+        showHero(null);
+        heroScrim.animate().alpha(1f).setDuration(400).start();
         showHint(R.string.section_move_hint);
+        overview();
     }
 
     private void endSectionMove() {
         if (moving == null) return;
-        moving.name.setText(moving.title);
-        moving.view.setBackground(null);
-        moving.view.setTranslationZ(0f);
+        Section s = moving;
+        s.name.setText(s.title);
+        s.view.setBackground(null);
+        s.view.setTranslationZ(0f);
         moving = null;
         hideHint();
+        for (Section each : sections) {
+            each.view.setClipBounds(null);
+            each.view.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(SECTION_MOVE_MS).setInterpolator(SLIDE).start();
+        }
+        scrollTo(s, getCurrentFocus());
+        showHero(s.row >= 0 ? shelfItem : null);
     }
+
+    /**
+     * Move mode's view: every shown section shrunk to its title and first few cards, stacked and centred
+     * between the header and the hint, sliding from wherever it shows now.
+     */
+    private void overview() {
+        float listY = sectionList.getTranslationY();
+        sectionList.animate().cancel();
+        sectionList.setTranslationY(0f);
+        int cardHeight = getResources().getDimensionPixelSize(R.dimen.card_height);
+        float gap = 10 * density, total = -gap;
+        for (Section each : sections) if (each.shown()) total += (each.list.getTop() + cardHeight) * OVERVIEW_SCALE + gap;
+        float top = 110 * density, bottom = root.getHeight() - 70 * density;
+        float y = top + Math.max(0f, (bottom - top - total) / 2);
+        for (Section each : sections) {
+            if (!each.shown()) continue;
+            View v = each.view;
+            int height = each.list.getTop() + cardHeight;
+            v.setTranslationY(v.getTranslationY() + listY);
+            v.setPivotX(getResources().getDimensionPixelSize(R.dimen.home_margin));
+            v.setPivotY(0f);
+            v.setClipBounds(new Rect(0, 0, v.getWidth(), height));
+            v.animate().translationY(y - v.getTop()).scaleX(OVERVIEW_SCALE).scaleY(OVERVIEW_SCALE).alpha(1f)
+                    .setDuration(SECTION_MOVE_MS).setInterpolator(SLIDE).start();
+            y += height * OVERVIEW_SCALE + gap;
+        }
+    }
+
+    private static final float OVERVIEW_SCALE = 0.55f;
+    private static final long SECTION_MOVE_MS = 320L;
+    private static final android.view.animation.Interpolator SLIDE = new android.view.animation.DecelerateInterpolator();
 
     /** One place up or down among the shown sections; the order is saved at once. */
     private void moveSection(Section s, int dir) {
@@ -809,29 +852,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         for (Section each : sections) order.add(each.key);
         Config.saveSectionOrder(this, order);
         View focused = getCurrentFocus();
-        java.util.Map<View, Integer> before = new java.util.HashMap<>();
-        for (int i = 0; i < sectionList.getChildCount(); i++) before.put(sectionList.getChildAt(i), sectionList.getChildAt(i).getTop());
-        int movingTop = s.view.getTop();
+        java.util.Map<View, Float> shownAt = new java.util.HashMap<>();
+        for (int i = 0; i < sectionList.getChildCount(); i++) {
+            View v = sectionList.getChildAt(i);
+            if (moving != null) v.animate().cancel();
+            shownAt.put(v, v.getTop() + v.getTranslationY());
+        }
         // The other section's view moves, so the focused card's never leaves the window and keeps focus.
         sectionList.removeView(other.view);
         sectionList.addView(other.view, sectionList.indexOfChild(s.view) + (dir > 0 ? 0 : 1));
         afterLayout(() -> {
-            // The moving section holds still on screen; the others start where they were and slide to their places.
-            float shift = movingTop - s.view.getTop();
-            sectionList.animate().cancel();
-            sectionList.setTranslationY(sectionList.getTranslationY() + shift);
+            if (moving == null) {
+                scrollTo(s, focused);   // the apps section, moved from the app reorder
+                return;
+            }
+            // Each section starts from where it showed and slides to its new place in the overview.
             for (int i = 0; i < sectionList.getChildCount(); i++) {
                 View v = sectionList.getChildAt(i);
-                Integer top = before.get(v);
-                if (top == null) continue;
-                v.setTranslationY(top - v.getTop() - shift);
-                v.animate().translationY(0f).setStartDelay(0).setDuration(SECTION_MOVE_MS).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+                Float at = shownAt.get(v);
+                if (at != null) v.setTranslationY(at - v.getTop());
             }
-            scrollTo(s, focused);
+            overview();
         });
     }
-
-    private static final long SECTION_MOVE_MS = 320L;
 
     /** Runs once the sections are laid out again, when their tops are where scrollTo reads them. */
     private void afterLayout(Runnable then) {
@@ -862,7 +905,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** The focused card in the top area, with its picture behind; null clears it back to the photo. */
     private void showHero(ShelfItem item) {
-        if (item != null && item.source == ShelfItem.Source.PLACEHOLDER) item = null;
+        if (moving != null || item != null && item.source == ShelfItem.Source.PLACEHOLDER) item = null;
         heroItem = item;
         handler.removeCallbacks(heroPicture);
         if (item == null) {
