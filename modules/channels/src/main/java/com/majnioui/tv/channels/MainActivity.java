@@ -6,6 +6,7 @@ import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -219,10 +220,20 @@ public class MainActivity extends Activity {
         list.setVerticalScrollBarEnabled(false);
         list.setItemsCanFocus(false);
         list.setDrawSelectorOnTop(false);
-        GradientDrawable sel = new GradientDrawable();
-        sel.setCornerRadius(dp(12));
-        sel.setColor(0xF5FFFFFF);
-        list.setSelector(sel);
+        // The row draws its own highlight (activated state, res/drawable/row_bg.xml), so its text can turn dark with
+        // it; ListView's selected state comes and goes with focus and left white text on the white selector.
+        list.setSelector(new ColorDrawable(0));
+        list.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                highlight();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                highlight();
+            }
+        });
         list.setOnItemClickListener((parent, view, position, id) -> {
             Object row = rows.get(position);
             if (row instanceof Integer) {
@@ -280,6 +291,15 @@ public class MainActivity extends Activity {
         closeGuide();
         menu.animate().alpha(0f).translationX(-dp(40)).setDuration(150)
                 .withEndAction(() -> menu.setVisibility(View.GONE)).start();
+    }
+
+    /** Marks the selected channel row (and only it) as highlighted. */
+    private void highlight() {
+        int selected = list.getSelectedItemPosition();
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View child = list.getChildAt(i);
+            child.setActivated(list.getFirstVisiblePosition() + i == selected);
+        }
     }
 
     /** Selects the first channel of the next (+1) or previous (-1) group. */
@@ -351,6 +371,7 @@ public class MainActivity extends Activity {
                 convert = holder.build();
             }
             holder.bind((Integer) row);
+            convert.setActivated(position == list.getSelectedItemPosition());
             return convert;
         }
     }
@@ -368,10 +389,9 @@ public class MainActivity extends Activity {
             r.setGravity(Gravity.CENTER_VERTICAL);
             r.setPadding(dp(12), dp(8), dp(14), dp(8));
             r.setMinimumHeight(dp(56));
-            ColorStateList fg = new ColorStateList(new int[][] {{android.R.attr.state_selected}, {}},
-                    new int[] {0xFF111111, 0xFFFFFFFF});
-            ColorStateList dim = new ColorStateList(new int[][] {{android.R.attr.state_selected}, {}},
-                    new int[] {0x99111111, 0x80FFFFFF});
+            r.setBackgroundResource(R.drawable.row_bg);
+            ColorStateList fg = getColorStateList(R.color.row_text);
+            ColorStateList dim = getColorStateList(R.color.row_text_dim);
             number = text(14, 500, 0);
             number.setTextColor(dim);
             number.setGravity(Gravity.END);
@@ -406,7 +426,8 @@ public class MainActivity extends Activity {
             done = new View(MainActivity.this);
             done.setBackgroundColor(accent);
             left = new View(MainActivity.this);
-            left.setBackgroundColor(0x33FFFFFF);
+            left.setBackgroundTintList(getColorStateList(R.color.row_track));
+            left.setBackground(new ColorDrawable(0xFFFFFFFF));
             progress.addView(done, new LinearLayout.LayoutParams(0, -1, 0f));
             progress.addView(left, new LinearLayout.LayoutParams(0, -1, 1f));
             LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-1, dp(2));

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Channel list text: dark on the white highlight, white elsewhere. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_activated="true" android:color="#FF202124" />
+    <item android:color="#FFFFFFFF" />
+</selector>
