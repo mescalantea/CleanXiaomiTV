@@ -47,4 +47,6 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     // The real org.json: android.jar only has stubs on the JVM.
     testImplementation 'org.json:json:20231013'
+    // An XmlPullParser for the feed tests; Android brings its own.
+    testImplementation 'net.sf.kxml:kxml2:2.3.0'
 }
