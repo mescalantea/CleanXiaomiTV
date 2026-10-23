@@ -261,6 +261,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 AnimationUtils.loadAnimation(this, R.anim.tile_enter), 0.06f));
         adapter = new AppAdapter(this, this, cfg, appOrder);
         grid.setAdapter(adapter);
+        grid.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
+            @Override
+            public void onChildViewAttachedToWindow(View tile) {
+                tile.setAlpha(1f);   // a recycled tile may come back faded (see scrollTo)
+            }
+
+            @Override
+            public void onChildViewDetachedFromWindow(View tile) {
+            }
+        });
+        // Nothing of the sections ever draws over the clock and the top buttons, whatever slides up there.
+        ((View) sectionList.getParent()).addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) ->
+                v.setClipBounds(new Rect(0, findViewById(R.id.hero).getTop() - (int) (8 * density), r - l, b - t)));
 
         btnInputs = findViewById(R.id.btnInputs);
         View btnSettings = findViewById(R.id.btnSettings);
@@ -785,13 +798,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (target == null) return;
         int extra = 0;
-        if (target.row < 0 && focused != null && focused.getParent() instanceof View) extra = ((View) focused.getParent()).getTop();
+        boolean inGrid = target.row < 0 && focused != null && focused.getParent() instanceof View;
+        if (inGrid) extra = ((View) focused.getParent()).getTop();
         float y = root.getHeight() * ANCHOR - target.view.getTop() - extra;
         sectionList.animate().translationY(y).setDuration(320).setInterpolator(GLIDE).start();
         boolean above = true;
         for (Section s : sections) {
             if (s == target) above = false;
             s.view.animate().alpha(above ? 0f : 1f).setDuration(200).start();
+        }
+        // In the apps grid the rows above the focused one fade too, as the sections above do.
+        for (int i = 0; i < grid.getChildCount(); i++) {
+            View tile = grid.getChildAt(i);
+            tile.animate().alpha(inGrid && tile.getTop() < extra ? 0f : 1f).setDuration(200).start();
         }
     }
 
