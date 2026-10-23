@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Dark on the left, where the hero's text is, and at the bottom, under the rows; the picture shows on the right. -->
+<!-- Dark on the left, where the hero's text is, at the top, under the clock and buttons, and at the bottom,
+     under the rows; the picture shows on the right. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
@@ -9,6 +10,11 @@
     <item>
         <shape android:shape="rectangle">
             <gradient android:angle="90" android:startColor="#E6000000" android:centerColor="#33000000" android:endColor="#66000000" />
+        </shape>
+    </item>
+    <item android:gravity="top" android:height="200dp">
+        <shape android:shape="rectangle">
+            <gradient android:angle="270" android:startColor="#E6000000" android:endColor="#00000000" />
         </shape>
     </item>
 </layer-list>

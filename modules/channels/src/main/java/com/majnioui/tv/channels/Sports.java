@@ -134,6 +134,10 @@ final class Sports {
         if (!tmp.renameTo(new File(ctx.getFilesDir(), SAVED))) throw new java.io.IOException("could not save " + SAVED);
     }
 
+    static boolean saved(Context ctx) {
+        return new File(ctx.getFilesDir(), SAVED).isFile();
+    }
+
     static List<Event> load(Context ctx) {
         File f = new File(ctx.getFilesDir(), SAVED);
         if (!f.isFile()) return Collections.emptyList();

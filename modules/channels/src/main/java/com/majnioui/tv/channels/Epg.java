@@ -139,7 +139,8 @@ final class Epg {
     /** True when the saved guide is missing or was fetched on another day. */
     static boolean refreshDue(Context ctx) {
         File f = new File(ctx.getFilesDir(), SAVED);
-        if (!f.isFile()) return true;
+        // The sports list is made while reading the guide: a guide saved by an older version has none yet.
+        if (!f.isFile() || !Sports.saved(ctx)) return true;
         Calendar saved = Calendar.getInstance();
         saved.setTimeInMillis(f.lastModified());
         Calendar today = Calendar.getInstance();
