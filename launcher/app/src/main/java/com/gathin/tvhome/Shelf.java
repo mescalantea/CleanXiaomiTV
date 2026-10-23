@@ -218,7 +218,11 @@ final class Shelf {
         try {
             return fetch.run();
         } catch (Exception e) {
-            Log.w(TAG, "jellyfin: " + e.getClass().getSimpleName());
+            // The cause chain's classes say why (for example CertPathValidatorException under SSLHandshakeException)
+            // without logging the server's address, which messages can carry.
+            StringBuilder why = new StringBuilder(e.getClass().getSimpleName());
+            for (Throwable t = e.getCause(); t != null; t = t.getCause()) why.append(" < ").append(t.getClass().getSimpleName());
+            Log.w(TAG, "jellyfin: " + why);
             return null;
         }
     }
