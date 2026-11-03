@@ -26,8 +26,9 @@ final class YouTubeCache {
     private YouTubeCache() {
     }
 
+    /** "youtube2-" since feeds left out Shorts; older files held them and are never read again. */
     static File file(Context ctx, String profile) {
-        return new File(ctx.getFilesDir(), "youtube-" + Integer.toHexString(profile.hashCode()) + ".txt");
+        return new File(ctx.getFilesDir(), "youtube2-" + Integer.toHexString(profile.hashCode()) + ".txt");
     }
 
     static boolean fresh(long savedAt, long now) {

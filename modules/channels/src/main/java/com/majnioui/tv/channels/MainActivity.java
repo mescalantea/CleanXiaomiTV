@@ -13,7 +13,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.util.LruCache;
 import android.util.TypedValue;
@@ -23,7 +25,10 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.BaseAdapter;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -67,6 +72,9 @@ public class MainActivity extends Activity {
     /** tvg-id of the channel to start on, from another app. */
     static final String EXTRA_TVG_ID = "tvg_id";
     private static final long BAR_MS = 4000;
+    /** Width of the channel list's text column; its scrim reaches SCRIM_FADE past it, clearing over the video. */
+    private static final int PANEL = 400;
+    private static final int SCRIM_FADE = PANEL / 2;
     private static final String DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -98,6 +106,7 @@ public class MainActivity extends Activity {
     private LinearLayout menu;
     private ListView list;
     private TextView menuStatus;
+    private EditText search;
     private final RowAdapter adapter = new RowAdapter();
     private ExoPlayer player;
     private final Runnable hideBar = () -> bar.animate().alpha(0f).setDuration(400).start();
@@ -122,6 +131,8 @@ public class MainActivity extends Activity {
         buildGuide();
         setContentView(root);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // The keyboard covers the screen's lower part; resizing would move the video and the list under it.
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
 
         setChannels(ChannelList.load(this));
         if (ChannelList.refreshDue(this)) {
@@ -190,25 +201,34 @@ public class MainActivity extends Activity {
 
     /** New list (bundled, saved or refreshed): rebuild the rows, keep the channel that is playing. */
     private void setChannels(List<ChannelList.Channel> fresh) {
-        String playingId = current >= 0 && current < channels.size() ? channels.get(current).id : null;
+        String playing = current >= 0 && current < channels.size() ? ChannelList.key(channels.get(current)) : null;
         channels = fresh;
+        if (playing != null) current = indexOf(playing);
+        menuStatus.setText(getString(R.string.channels_count, channels.size()));
+        buildRows();
+    }
+
+    /** The channels whose name matches the search, under the headers of their groups. */
+    private void buildRows() {
+        String query = search.getText().toString();
         rows.clear();
         String group = null;
         for (int i = 0; i < channels.size(); i++) {
-            if (!channels.get(i).group.equals(group)) {
-                group = channels.get(i).group;
+            ChannelList.Channel c = channels.get(i);
+            if (!ChannelList.matches(c.name, query)) continue;
+            if (!c.group.equals(group)) {
+                group = c.group;
                 rows.add(group);
             }
             rows.add(i);
         }
-        if (playingId != null) current = indexOf(playingId);
-        menuStatus.setText(getString(R.string.channels_count, channels.size()));
         adapter.notifyDataSetChanged();
     }
 
-    private int indexOf(String id) {
-        if (id == null) return -1;
-        for (int i = 0; i < channels.size(); i++) if (channels.get(i).id.equals(id)) return i;
+    /** The channel with this key (see ChannelList.key), or -1. */
+    private int indexOf(String key) {
+        if (key == null) return -1;
+        for (int i = 0; i < channels.size(); i++) if (ChannelList.key(channels.get(i)).equals(key)) return i;
         return -1;
     }
 
@@ -217,18 +237,18 @@ public class MainActivity extends Activity {
     private void buildMenu() {
         menu = new LinearLayout(this);
         menu.setOrientation(LinearLayout.VERTICAL);
-        menu.setPadding(dp(24), dp(36), dp(24), dp(24));
-        // Opaque: on this TV the video plane shows through a 95% dark panel strongly enough to blur the text.
-        menu.setBackgroundColor(0xFF0B0D10);
+        menu.setPadding(dp(24), dp(36), dp(24 + SCRIM_FADE), dp(24));
+        menu.setBackground(scrim());
         menu.setVisibility(View.GONE);
 
-        TextView title = text(15, 600, 0xCCFFFFFF);
+        TextView title = text(15, 600, 0xE6FFFFFF);
         title.setLetterSpacing(0.22f);
         title.setText(R.string.channels_title);
         menu.addView(title);
-        menuStatus = text(15, 500, 0x99FFFFFF);
+        menuStatus = text(15, 500, 0xCCFFFFFF);
         menuStatus.setPadding(0, dp(4), 0, dp(14));
         menu.addView(menuStatus);
+        buildSearch();
 
         list = new ListView(this);
         list.setAdapter(adapter);
@@ -264,6 +284,10 @@ public class MainActivity extends Activity {
         });
         list.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP && list.getSelectedItemPosition() <= firstChannelRow()) {
+                search.requestFocus();
+                return true;
+            }
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                 jumpGroup(keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
                 return true;
@@ -276,15 +300,74 @@ public class MainActivity extends Activity {
             return false;
         });
         menu.addView(list, new LinearLayout.LayoutParams(-1, 0, 1f));
+        TextView none = text(16, 500, 0xCCFFFFFF);
+        none.setText(R.string.search_none);
+        none.setPadding(dp(12), dp(8), 0, 0);
+        menu.addView(none, new LinearLayout.LayoutParams(-1, 0, 1f));
+        list.setEmptyView(none);
 
-        TextView hint = text(14, 500, 0xB3FFFFFF);
+        TextView hint = text(14, 500, 0xD9FFFFFF);
         hint.setText(R.string.menu_hint);
         hint.setSingleLine(true);
         hint.setEllipsize(TextUtils.TruncateAt.END);
         hint.setPadding(0, dp(12), 0, 0);
         menu.addView(hint);
 
-        root.addView(menu, new FrameLayout.LayoutParams(dp(400), -1, Gravity.START));
+        root.addView(menu, new FrameLayout.LayoutParams(dp(PANEL + SCRIM_FADE), -1, Gravity.START));
+    }
+
+    /** Typing filters the list; OK opens the keyboard, Down (or the keyboard's search key) goes to the list. */
+    private void buildSearch() {
+        search = style(new EditText(this), 17, 500, 0xFFFFFFFF);
+        search.setHint(R.string.search_hint);
+        search.setHintTextColor(0x99FFFFFF);
+        search.setSingleLine(true);
+        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
+        search.setPadding(dp(14), dp(10), dp(14), dp(10));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(dp(12));
+        bg.setColor(0x26FFFFFF);
+        search.setBackground(bg);
+        search.setOnFocusChangeListener((v, focused) -> bg.setStroke(dp(2), focused ? 0xFFFFFFFF : 0));
+        search.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                buildRows();
+                list.setSelection(firstChannelRow());
+            }
+        });
+        search.setOnEditorActionListener((v, actionId, event) -> {
+            getSystemService(InputMethodManager.class).hideSoftInputFromWindow(search.getWindowToken(), 0);
+            toList();
+            return true;
+        });
+        search.setOnKeyListener((v, keyCode, event) -> {
+            if (keyCode != KeyEvent.KEYCODE_DPAD_DOWN) return false;
+            if (event.getAction() == KeyEvent.ACTION_DOWN) toList();
+            return true;
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.bottomMargin = dp(12);
+        menu.addView(search, lp);
+    }
+
+    private void toList() {
+        if (rows.isEmpty()) return;
+        list.requestFocus();
+        list.setSelection(firstChannelRow());
+    }
+
+    /** Row 0 is always a group header. */
+    private int firstChannelRow() {
+        return rows.isEmpty() ? 0 : 1;
     }
 
     private boolean menuOpen() {
@@ -302,6 +385,10 @@ public class MainActivity extends Activity {
         bar.setAlpha(0f);
         adapter.notifyDataSetChanged();
         list.requestFocus();
+        showCurrent();
+    }
+
+    private void showCurrent() {
         int row = rows.indexOf(current >= 0 ? current : 0);
         list.setSelectionFromTop(Math.max(0, row), dp(140));
     }
@@ -309,16 +396,29 @@ public class MainActivity extends Activity {
     private void closeMenu() {
         closeGuide();
         menu.animate().alpha(0f).setDuration(150)
-                .withEndAction(() -> menu.setVisibility(View.GONE)).start();
+                .withEndAction(() -> {
+                    menu.setVisibility(View.GONE);
+                    search.setText("");
+                }).start();
     }
 
     /** Marks the selected channel row (and only it) as highlighted. */
     private void highlight() {
         int selected = list.getSelectedItemPosition();
         for (int i = 0; i < list.getChildCount(); i++) {
-            View child = list.getChildAt(i);
-            child.setActivated(list.getFirstVisiblePosition() + i == selected);
+            setHighlighted(list.getChildAt(i), list.getFirstVisiblePosition() + i == selected);
         }
+    }
+
+    /** The white highlight turns the row's text dark, which a shadow would only smudge. */
+    private void setHighlighted(View row, boolean on) {
+        row.setActivated(on);
+        if (!(row.getTag() instanceof RowHolder)) return;
+        RowHolder h = (RowHolder) row.getTag();
+        for (TextView t : new TextView[] {h.number, h.name, h.onAir}) shadow(t, !on);
+        // A marquee only scrolls while its view is selected; the list never selects the rows themselves.
+        h.name.setSelected(on);
+        h.onAir.setSelected(on);
     }
 
     /** Selects the first channel of the next (+1) or previous (-1) group. */
@@ -376,7 +476,7 @@ public class MainActivity extends Activity {
         public View getView(int position, View convert, ViewGroup parent) {
             Object row = rows.get(position);
             if (row instanceof String) {
-                TextView h = convert instanceof TextView ? (TextView) convert : text(15, 600, 0x99FFFFFF);
+                TextView h = convert instanceof TextView ? (TextView) convert : text(15, 600, 0xCCFFFFFF);
                 h.setText(((String) row).toUpperCase(Locale.ROOT));
                 h.setLetterSpacing(0.12f);
                 h.setPadding(dp(12), dp(position == 0 ? 4 : 18), 0, dp(8));
@@ -390,7 +490,7 @@ public class MainActivity extends Activity {
                 convert = holder.build();
             }
             holder.bind((Integer) row);
-            convert.setActivated(position == list.getSelectedItemPosition());
+            setHighlighted(convert, position == list.getSelectedItemPosition());
             return convert;
         }
     }
@@ -433,12 +533,14 @@ public class MainActivity extends Activity {
             name = text(19, 600, 0);
             name.setTextColor(fg);
             name.setSingleLine(true);
-            name.setEllipsize(TextUtils.TruncateAt.END);
+            name.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+            name.setMarqueeRepeatLimit(-1);
             texts.addView(name);
             onAir = text(15, 500, 0);
             onAir.setTextColor(dim);
             onAir.setSingleLine(true);
-            onAir.setEllipsize(TextUtils.TruncateAt.END);
+            onAir.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+            onAir.setMarqueeRepeatLimit(-1);
             onAir.setPadding(0, dp(3), 0, 0);
             texts.addView(onAir);
             progress = new LinearLayout(MainActivity.this);
@@ -511,10 +613,10 @@ public class MainActivity extends Activity {
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.setPadding(dp(18), 0, 0, 0);
         barName = text(24, 600, 0xFFFFFFFF);
-        barGroup = text(15, 500, 0xA6FFFFFF);
-        barNow = text(16, 600, 0xE6FFFFFF);
+        barGroup = text(15, 500, 0xCCFFFFFF);
+        barNow = text(16, 600, 0xF2FFFFFF);
         barNow.setPadding(0, dp(8), 0, 0);
-        barNext = text(15, 500, 0x99FFFFFF);
+        barNext = text(15, 500, 0xCCFFFFFF);
         barNext.setPadding(0, dp(3), 0, 0);
         for (TextView t : new TextView[] {barNow, barNext}) {
             t.setSingleLine(true);
@@ -537,7 +639,7 @@ public class MainActivity extends Activity {
         index = (index % channels.size() + channels.size()) % channels.size();
         current = index;
         final ChannelList.Channel c = channels.get(index);
-        prefs.edit().putString("last", c.id).apply();
+        prefs.edit().putString("last", ChannelList.key(c)).apply();
         adapter.notifyDataSetChanged();
         message.setText(R.string.loading);
         message.setVisibility(View.VISIBLE);
@@ -653,8 +755,8 @@ public class MainActivity extends Activity {
     private void buildGuide() {
         guidePanel = new LinearLayout(this);
         guidePanel.setOrientation(LinearLayout.VERTICAL);
-        guidePanel.setPadding(dp(24), dp(36), dp(24), dp(24));
-        guidePanel.setBackgroundColor(0xFF0B0D10);
+        guidePanel.setPadding(dp(24), dp(36), dp(24 + SCRIM_FADE), dp(24));
+        guidePanel.setBackground(scrim());
         guidePanel.setVisibility(View.GONE);
         guideTitle = text(20, 600, 0xFFFFFFFF);
         guideTitle.setPadding(dp(12), 0, 0, dp(14));
@@ -676,8 +778,8 @@ public class MainActivity extends Activity {
             return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
         });
         guidePanel.addView(guideList, new LinearLayout.LayoutParams(-1, 0, 1f));
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -1, Gravity.START);
-        lp.leftMargin = dp(400);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(PANEL + SCRIM_FADE), -1, Gravity.START);
+        lp.leftMargin = dp(PANEL);
         root.addView(guidePanel, lp);
     }
 
@@ -730,7 +832,7 @@ public class MainActivity extends Activity {
             long now = System.currentTimeMillis();
             boolean onAir = p.start <= now && now < p.stop;
             t.setText(clock.format(new Date(p.start)) + "   " + p.title);
-            t.setTextColor(onAir ? accent : p.stop <= now ? 0x66FFFFFF : 0xE6FFFFFF);
+            t.setTextColor(onAir ? accent : p.stop <= now ? 0x99FFFFFF : 0xF2FFFFFF);
             t.setSingleLine(true);
             t.setEllipsize(TextUtils.TruncateAt.END);
             t.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -742,8 +844,14 @@ public class MainActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (menuOpen()) {
             if (keyCode == KeyEvent.KEYCODE_BACK) {
-                if (guideOpen()) closeGuide();
-                else closeMenu();
+                if (guideOpen()) {
+                    closeGuide();
+                } else if (search.length() > 0) {
+                    search.setText("");
+                    showCurrent();
+                } else {
+                    closeMenu();
+                }
                 return true;
             }
             return super.onKeyDown(keyCode, event);
@@ -821,14 +929,29 @@ public class MainActivity extends Activity {
     // ---- helpers --------------------------------------------------------------------------------
 
     private TextView text(float sp, int weight, int color) {
-        TextView t = new TextView(this);
+        return style(new TextView(this), sp, weight, color);
+    }
+
+    private <T extends TextView> T style(T t, float sp, int weight, int color) {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         if (color != 0) t.setTextColor(color);
         t.setIncludeFontPadding(false);
         // Outfit is a variable font: its weight comes from the wght axis, which Typeface.create leaves at Thin.
         t.setTypeface(font);
         t.setFontVariationSettings("'wght' " + weight);
+        shadow(t, true);
         return t;
+    }
+
+    private void shadow(TextView t, boolean on) {
+        float d = getResources().getDisplayMetrics().density;
+        t.setShadowLayer(on ? 6 * d : 0, 0, on ? d : 0, 0x99000000);
+    }
+
+    /** A see-through shade, darkest under the numbers and logos, clear by the right edge; shadows carry the text. */
+    private static GradientDrawable scrim() {
+        return new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[] {0xE6000000, 0xCC000000, 0xA6000000, 0x00000000});
     }
 
     private int dp(int v) {

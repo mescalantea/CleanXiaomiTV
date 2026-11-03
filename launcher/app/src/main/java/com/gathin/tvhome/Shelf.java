@@ -228,19 +228,19 @@ final class Shelf {
         if (feeds) tasks.add(() -> {
             List<String> channels = subscriptions
                     ? YouTubeSubscriptions.merge(fixed, YouTubeSubscriptions.channels(activity, youtubeKey, person)) : fixed;
-            // Videos only ever join at the end, so nothing moves under the user while feeds arrive.
+            // On a first load videos join at the end as feeds arrive; a list already shown waits for them all.
             List<ShelfItem> videos = YouTubeFeed.fetch(channels, batch -> handler.post(() -> {
                 if (gen != generation) return;
                 sections.append(ShelfSections.YOUTUBE, batch, YOUTUBE_MAX);
                 show();
             }));
             long at = System.currentTimeMillis();
-            // Newest first for the next start; this session keeps its order.
-            if (!videos.isEmpty()) YouTubeCache.save(cache, YouTubeFeed.append(Collections.emptyList(), videos, YOUTUBE_MAX));
+            List<ShelfItem> latest = videos.isEmpty() ? null : YouTubeFeed.append(Collections.emptyList(), videos, YOUTUBE_MAX);
+            if (latest != null) YouTubeCache.save(cache, latest);
             handler.post(() -> {
                 if (gen != generation) return;
-                if (!videos.isEmpty()) youtubeAt = at;
-                sections.finish(ShelfSections.YOUTUBE);
+                if (latest != null) youtubeAt = at;
+                sections.set(ShelfSections.YOUTUBE, latest);
                 show();
             });
         });
@@ -265,14 +265,6 @@ final class Shelf {
         } catch (java.util.concurrent.RejectedExecutionException e) {
             // Stopped between the check and the call.
         }
-    }
-
-    /** Whether the card at this place has no counterpart in the new rows (see areItemsTheSame). */
-    private static boolean gone(ShelfItem item, int at, List<ShelfItem> fresh) {
-        if (item.source == ShelfItem.Source.PLACEHOLDER) return at >= fresh.size();
-        String key = ShelfSections.key(item);
-        for (ShelfItem i : fresh) if (ShelfSections.key(i).equals(key)) return false;
-        return true;
     }
 
     private boolean liveOn() {
@@ -532,15 +524,20 @@ final class Shelf {
                             && a.progress == b.progress && a.fresh == b.fresh && java.util.Objects.equals(a.image, b.image);
                 }
             }, false).dispatchUpdatesTo(adapter);
-            focusedIndex = Math.min(focusedIndex, Math.max(0, items.size() - 1));
-            if (focusedAt != RecyclerView.NO_POSITION && gone(old.get(focusedAt), focusedAt, fresh)) {
-                // If the focused card went away, take focus back to the same place once the row is laid out.
+            int was = focusedAt != RecyclerView.NO_POSITION ? focusedAt : focusedIndex;
+            focusedIndex = was < old.size() ? ShelfSections.place(old.get(was), was, fresh) : Math.min(was, Math.max(0, fresh.size() - 1));
+            boolean stays = focusedIndex == focusedAt && focusedIndex < fresh.size()
+                    && ShelfSections.key(fresh.get(focusedIndex)).equals(ShelfSections.key(old.get(focusedAt)));
+            if (focusedAt != RecyclerView.NO_POSITION && !stays) {
+                // The focused card may have been removed or moved; once the row is laid out, take focus to the
+                // same video, or to the same place when it went away.
+                final int target = focusedIndex;
                 list.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
                     @Override
                     public void onGlobalLayout() {
                         list.getViewTreeObserver().removeOnGlobalLayoutListener(this);
                         if (list.hasFocus() || items.isEmpty() || !list.isShown()) return;
-                        focusedIndex = Math.min(focusedAt, items.size() - 1);
+                        focusedIndex = Math.min(target, items.size() - 1);
                         focus();
                     }
                 });

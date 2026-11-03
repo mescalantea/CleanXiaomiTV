@@ -9,7 +9,7 @@ import java.util.Set;
 /**
  * The content of Home's rows, by source, in a fixed order within each row (resume, next up, new episodes;
  * live channels, sports; YouTube). A source that loads with nothing to show yet ends in placeholder cards until
- * it is done, so results can arrive one source at a time, and YouTube feed by feed, without anything moving.
+ * it is done, so results can arrive one source at a time, and YouTube feed by feed while it has nothing yet.
  */
 final class ShelfSections {
     static final int RESUME = 0, NEXT_UP = 1, NEW = 2, LIVE = 3, SPORTS = 4, YOUTUBE = 5;
@@ -31,14 +31,12 @@ final class ShelfSections {
         if (fresh != null) items[section] = fresh;
     }
 
-    /** Adds videos at the end of the section, which stays loading; see {@link YouTubeFeed#append}. */
+    /**
+     * Adds videos at the end of a section that started loading empty, which stays loading; see
+     * {@link YouTubeFeed#append}. A section that already shows items keeps them until {@link #set}.
+     */
     void append(int section, List<ShelfItem> batch, int max) {
-        items[section] = YouTubeFeed.append(items[section], batch, max);
-    }
-
-    /** The section is done loading and keeps what it has. */
-    void finish(int section) {
-        loading[section] = false;
+        if (loading[section]) items[section] = YouTubeFeed.append(items[section], batch, max);
     }
 
     void clear() {
@@ -66,5 +64,14 @@ final class ShelfSections {
     /** Identity across updates: same source and id. */
     static String key(ShelfItem item) {
         return item.source + ":" + item.id;
+    }
+
+    /** Where the card at this place is in the new rows: its own place by key, else the same place. */
+    static int place(ShelfItem item, int at, List<ShelfItem> fresh) {
+        if (item.source != ShelfItem.Source.PLACEHOLDER) {
+            String key = key(item);
+            for (int i = 0; i < fresh.size(); i++) if (key(fresh.get(i)).equals(key)) return i;
+        }
+        return Math.min(at, Math.max(0, fresh.size() - 1));
     }
 }

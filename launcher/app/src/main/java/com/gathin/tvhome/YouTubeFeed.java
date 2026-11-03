@@ -39,8 +39,7 @@ final class YouTubeFeed {
         ExecutorService pool = Executors.newFixedThreadPool(8);
         for (String channel : channels) pool.execute(() -> {
             try {
-                HttpURLConnection c = (HttpURLConnection) new URL("https://www.youtube.com/feeds/videos.xml?channel_id="
-                        + URLEncoder.encode(channel, "UTF-8")).openConnection();
+                HttpURLConnection c = (HttpURLConnection) new URL(feedUrl(channel)).openConnection();
                 c.setConnectTimeout(8000);
                 c.setReadTimeout(10000);
                 try (InputStream in = c.getInputStream()) {
@@ -68,6 +67,17 @@ final class YouTubeFeed {
         synchronized (all) {
             return newest(all);
         }
+    }
+
+    /**
+     * The channel's long-form uploads (its "UULF" playlist), which leaves out Shorts and past live streams;
+     * an id that is not a "UC" channel id falls back to the channel's full feed.
+     */
+    static String feedUrl(String channel) throws Exception {
+        if (channel.startsWith("UC")) {
+            return "https://www.youtube.com/feeds/videos.xml?playlist_id=UULF" + URLEncoder.encode(channel.substring(2), "UTF-8");
+        }
+        return "https://www.youtube.com/feeds/videos.xml?channel_id=" + URLEncoder.encode(channel, "UTF-8");
     }
 
     /** The feed's newest video alone, or nothing for an empty feed. */

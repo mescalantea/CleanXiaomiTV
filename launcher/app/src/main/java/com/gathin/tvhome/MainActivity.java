@@ -212,6 +212,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateWeather();
             if (homePhotoOn) loadHomePhoto();   // a new photo when the next slot starts
             shelf.tick();
+            shelf.refresh();
             handler.postDelayed(this, MINUTE_MS);
         }
     };

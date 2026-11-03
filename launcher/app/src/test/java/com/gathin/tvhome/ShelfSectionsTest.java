@@ -50,19 +50,31 @@ public class ShelfSectionsTest {
         assertEquals("r1 v2 _ _ _", ids(s.rows(ALL)));
         s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("v1"), yt("v2")), 300);
         assertEquals("r1 v2 v1 _ _ _", ids(s.rows(ALL)));
-        s.finish(ShelfSections.YOUTUBE);
-        assertEquals("r1 v2 v1", ids(s.rows(ALL)));
+        s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("v1"), yt("v2")));
+        assertEquals("r1 v1 v2", ids(s.rows(ALL)));
     }
 
     @Test
-    public void aRefreshOverTheCacheOnlyAppends() {
+    public void aRefreshOverShownVideosShowsTheFreshListWhenDone() {
         ShelfSections s = new ShelfSections();
-        s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("old")));
+        s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("old"), yt("gone")));
         s.start(ShelfSections.YOUTUBE);
-        assertEquals("old", ids(s.rows(ALL)));
         s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("new")), 300);
-        s.finish(ShelfSections.YOUTUBE);
-        assertEquals("old new", ids(s.rows(ALL)));
+        assertEquals("old gone", ids(s.rows(ALL)));
+        s.set(ShelfSections.YOUTUBE, Arrays.asList(yt("new"), yt("old")));
+        assertEquals("new old", ids(s.rows(ALL)));
+        s.append(ShelfSections.YOUTUBE, Arrays.asList(yt("late")), 300);
+        assertEquals("new old", ids(s.rows(ALL)));
+    }
+
+    @Test
+    public void placeFollowsTheVideoElseKeepsThePlace() {
+        List<ShelfItem> fresh = Arrays.asList(yt("new"), yt("old"), yt("other"));
+        assertEquals(1, ShelfSections.place(yt("old"), 0, fresh));
+        assertEquals(2, ShelfSections.place(yt("gone"), 2, fresh));
+        assertEquals(2, ShelfSections.place(yt("gone"), 9, fresh));
+        assertEquals(0, ShelfSections.place(yt("gone"), 4, Collections.emptyList()));
+        assertEquals(1, ShelfSections.place(new ShelfItem(ShelfItem.Source.PLACEHOLDER, "5-0", "", "", null, -1, 0), 1, fresh));
     }
 
     @Test
