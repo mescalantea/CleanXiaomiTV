@@ -1,0 +1,23 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="" tvg-logo="https://graph.facebook.com/france24espanol/picture?width=200&height=200" group-title="Internacional (oficial)",France 24 ES
+https://live.france24.com/hls/live/2037220/F24_ES_HI_HLS/master_5000.m3u8
+#EXTINF:-1 tvg-id="" tvg-logo="https://graph.facebook.com/FRANCE24.English/picture?width=200&height=200" group-title="Internacional (oficial)",France 24 EN
+https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_5000.m3u8
+#EXTINF:-1 tvg-id="France24.TV" tvg-logo="https://graph.facebook.com/FRANCE24/picture?width=200&height=200" group-title="Internacional (oficial)",France 24 FR
+https://live.france24.com/hls/live/2037179/F24_FR_HI_HLS/master_5000.m3u8
+#EXTINF:-1 tvg-id="" tvg-logo="https://graph.facebook.com/france24arabic/picture?width=200&height=200" group-title="Internacional (oficial)",France 24 AR
+https://live.france24.com/hls/live/2037222/F24_AR_HI_HLS/master_5000.m3u8
+#EXTINF:-1 tvg-id="" tvg-logo="https://graph.facebook.com/dw.arabic/picture?width=200&height=200" group-title="Internacional (oficial)",DW AR
+https://dwamdstream103.akamaized.net/hls/live/2015526/dwstream103/master.m3u8
+#EXTINF:-1 tvg-id="" tvg-logo="https://www.aljazeera.net/images/logo_aja.png" group-title="Internacional (oficial)",Al Jazeera Mubasher AR
+https://live-hls-web-ajm-ll-bp.thehlive.com/AJM/index.m3u8
+#EXTINF:-1 tvg-id="" tvg-logo="https://graph.facebook.com/trtarabi/picture?width=200&height=200" group-title="Internacional (oficial)",TRT Arabi AR
+https://tv-trtarabi.medya.trt.com.tr/master.m3u8
+#EXTINF:-1 tvg-id="" tvg-logo="https://cdn-images.rtp.pt/common/img/channels/logos/color/horizontal/120-312926260903.png?v=3&w=400" group-title="Internacional (oficial)",RTP Mundo PT
+https://streaming-live.rtp.pt/liverepeater/smil:rtpi.smil/playlist.m3u8
+#EXTINF:-1 tvg-id="" tvg-logo="https://www.rainews.it/dl/rainews/images/apple-touch-icon.png" group-title="Internacional (oficial)",Rai News 24 IT
+https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=1&output=16
+#EXTINF:-1 tvg-id="" tvg-logo="https://graph.facebook.com/tv5mondeinfo/picture?width=200&height=200" group-title="Internacional (oficial)",TV5Monde Info FR
+https://ott.tv5monde.com/Content/HLS/Live/channel(info)/variant.m3u8
+#EXTINF:-1 tvg-id="" tvg-logo="https://graph.facebook.com/VOANews/picture?width=200&height=200" group-title="Internacional (oficial)",VOA EN
+https://voa-ingest.akamaized.net/hls/live/2033866/tvmc01/playlist.m3u8

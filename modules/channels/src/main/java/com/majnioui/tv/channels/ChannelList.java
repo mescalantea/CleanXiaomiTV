@@ -13,10 +13,12 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,7 +26,8 @@ import java.util.regex.Pattern;
  * The channels come from TDTChannels' public list (res/values/config.xml, sources), fetched once a day, in
  * its order: Spanish national and regional groups first, international ones after. The list is saved, so
  * the app starts with the last good links and still works when it can't be reached; before the first fetch
- * it falls back to res/raw/channels.m3u, a snapshot of the Spanish channels.
+ * it falls back to res/raw/channels.m3u, a snapshot of the Spanish channels. After them come the international
+ * channels of res/raw/international.m3u, streams their broadcasters publish, that the public list lacks.
  */
 final class ChannelList {
     private static final String TAG = "Channels";
@@ -50,8 +53,12 @@ final class ChannelList {
     private ChannelList() {
     }
 
-    /** The saved list if there is one, else the bundled one. Fast; safe on the main thread. */
+    /** The saved list if there is one, else the bundled one, then the international channels. Fast. */
     static List<Channel> load(Context ctx) {
+        return merge(saved(ctx), raw(ctx, R.raw.international));
+    }
+
+    private static List<Channel> saved(Context ctx) {
         File saved = new File(ctx.getFilesDir(), SAVED);
         try {
             if (saved.isFile()) {
@@ -61,14 +68,14 @@ final class ChannelList {
         } catch (Exception e) {
             Log.w(TAG, "saved list: " + e);
         }
-        return bundled(ctx);
+        return raw(ctx, R.raw.channels);
     }
 
-    static List<Channel> bundled(Context ctx) {
-        try (InputStream in = ctx.getResources().openRawResource(R.raw.channels)) {
+    private static List<Channel> raw(Context ctx, int id) {
+        try (InputStream in = ctx.getResources().openRawResource(id)) {
             return parse(new String(readAll(in), StandardCharsets.UTF_8));
         } catch (Exception e) {
-            Log.w(TAG, "bundled list: " + e);
+            Log.w(TAG, "bundled list " + id + ": " + e);
             return new ArrayList<>();
         }
     }
@@ -104,7 +111,16 @@ final class ChannelList {
         } catch (Exception e) {
             Log.w(TAG, "save: " + e);
         }
-        return list;
+        return merge(list, raw(ctx, R.raw.international));
+    }
+
+    /** The list, then the extra channels whose name it doesn't have yet. */
+    static List<Channel> merge(List<Channel> list, List<Channel> extra) {
+        Set<String> names = new HashSet<>();
+        for (Channel c : list) names.add(fold(c.name));
+        List<Channel> out = new ArrayList<>(list);
+        for (Channel c : extra) if (names.add(fold(c.name))) out.add(c);
+        return out;
     }
 
     /**
