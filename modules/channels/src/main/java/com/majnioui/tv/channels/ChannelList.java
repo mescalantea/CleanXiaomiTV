@@ -11,9 +11,11 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -117,6 +119,20 @@ final class ChannelList {
             if (!byKey.containsKey(key)) byKey.put(key, c);
         }
         return new ArrayList<>(byKey.values());
+    }
+
+    /** What the app remembers a channel by: its tvg-id, or its link when the list gives it none. */
+    static String key(Channel c) {
+        return c.id.isEmpty() ? c.url : c.id;
+    }
+
+    /** Whether the name contains the query, ignoring case and accents; a blank query matches every name. */
+    static boolean matches(String name, String query) {
+        return fold(name).contains(fold(query.trim()));
+    }
+
+    private static String fold(String s) {
+        return Normalizer.normalize(s, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
     }
 
     /** M3U with #EXTINF attributes (tvg-id, tvg-logo, group-title) and optional #EXTVLCOPT headers. */

@@ -9,4 +9,6 @@
     <string name="channels_count">%1$d canales</string>
     <string name="loading">Cargando…</string>
     <string name="unavailable">%1$s no está disponible ahora.\nArriba / Abajo para otro canal, OK para la lista.</string>
+    <string name="search_hint">Buscar canales</string>
+    <string name="search_none">Ningún canal coincide</string>
 </resources>
