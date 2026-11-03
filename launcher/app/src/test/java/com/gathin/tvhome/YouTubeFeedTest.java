@@ -35,6 +35,14 @@ public class YouTubeFeedTest {
     }
 
     @Test
+    public void feedUrlAsksForTheLongFormUploads() throws Exception {
+        assertEquals("https://www.youtube.com/feeds/videos.xml?playlist_id=UULFabc_-1",
+                YouTubeFeed.feedUrl("UCabc_-1"));
+        assertEquals("https://www.youtube.com/feeds/videos.xml?channel_id=HCx",
+                YouTubeFeed.feedUrl("HCx"));
+    }
+
+    @Test
     public void readsTheEntries() throws Exception {
         List<ShelfItem> items = parse(FEED, false);
         assertEquals(2, items.size());
