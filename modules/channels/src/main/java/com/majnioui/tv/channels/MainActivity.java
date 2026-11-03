@@ -328,6 +328,9 @@ public class MainActivity extends Activity {
         if (!(row.getTag() instanceof RowHolder)) return;
         RowHolder h = (RowHolder) row.getTag();
         for (TextView t : new TextView[] {h.number, h.name, h.onAir}) shadow(t, !on);
+        // A marquee only scrolls while its view is selected; the list never selects the rows themselves.
+        h.name.setSelected(on);
+        h.onAir.setSelected(on);
     }
 
     /** Selects the first channel of the next (+1) or previous (-1) group. */
@@ -442,12 +445,14 @@ public class MainActivity extends Activity {
             name = text(19, 600, 0);
             name.setTextColor(fg);
             name.setSingleLine(true);
-            name.setEllipsize(TextUtils.TruncateAt.END);
+            name.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+            name.setMarqueeRepeatLimit(-1);
             texts.addView(name);
             onAir = text(15, 500, 0);
             onAir.setTextColor(dim);
             onAir.setSingleLine(true);
-            onAir.setEllipsize(TextUtils.TruncateAt.END);
+            onAir.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+            onAir.setMarqueeRepeatLimit(-1);
             onAir.setPadding(0, dp(3), 0, 0);
             texts.addView(onAir);
             progress = new LinearLayout(MainActivity.this);
